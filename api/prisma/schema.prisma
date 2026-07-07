@@ -1,0 +1,252 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  OWNER
+  VET
+  ADMIN
+}
+
+enum AccountStatus {
+  PENDING
+  ACTIVE
+  REJECTED
+}
+
+enum PetSex {
+  MALE
+  FEMALE
+  UNKNOWN
+}
+
+enum MedicalRecordType {
+  CONSULTATION
+  VACCINE
+  DEWORMING
+  TREATMENT
+  OBSERVATION
+}
+
+enum AppointmentStatus {
+  REQUESTED
+  CONFIRMED
+  CANCELLED
+  COMPLETED
+}
+
+enum ReminderType {
+  VACCINE
+  CHECKUP
+  APPOINTMENT
+  TREATMENT
+  OTHER
+}
+
+enum ReminderStatus {
+  PENDING
+  COMPLETED
+}
+
+model User {
+  id           String        @id @default(cuid())
+  email        String        @unique
+  passwordHash String
+  role         UserRole
+  status       AccountStatus @default(ACTIVE)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  ownerProfile OwnerProfile?
+  vetProfile   VetProfile?
+  sentMessages Message[]     @relation("SentMessages")
+  auditLogs    AuditLog[]    @relation("AuditActor")
+
+  @@map("users")
+}
+
+model OwnerProfile {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  firstName String
+  lastName  String
+  phone     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  pets      Pet[]
+
+  @@map("owner_profiles")
+}
+
+model VetProfile {
+  id            String          @id @default(cuid())
+  userId        String          @unique
+  clinicName    String
+  managerName   String?
+  phone         String?
+  address       String?
+  description   String?         @db.Text
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  user          User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  pets          PetVet[]
+  appointments  Appointment[]
+  reminders     Reminder[]
+  records       MedicalRecord[]
+  conversations Conversation[]
+
+  @@map("vet_profiles")
+}
+
+model Pet {
+  id             String          @id @default(cuid())
+  ownerProfileId String
+  name           String
+  species        String
+  breed          String?
+  sex            PetSex          @default(UNKNOWN)
+  birthDate      DateTime?
+  weightKg       Decimal?        @db.Decimal(6, 2)
+  notes          String?         @db.Text
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  owner          OwnerProfile    @relation(fields: [ownerProfileId], references: [id], onDelete: Cascade)
+  vets           PetVet[]
+  records        MedicalRecord[]
+  appointments   Appointment[]
+  reminders      Reminder[]
+  conversations  Conversation[]
+
+  @@index([ownerProfileId])
+  @@map("pets")
+}
+
+model PetVet {
+  id           String     @id @default(cuid())
+  petId        String
+  vetProfileId String
+  createdAt    DateTime   @default(now())
+  pet          Pet        @relation(fields: [petId], references: [id], onDelete: Cascade)
+  vet          VetProfile @relation(fields: [vetProfileId], references: [id], onDelete: Cascade)
+
+  @@unique([petId, vetProfileId])
+  @@index([vetProfileId])
+  @@map("pet_vets")
+}
+
+model MedicalRecord {
+  id           String            @id @default(cuid())
+  petId        String
+  vetProfileId String
+  type         MedicalRecordType
+  recordDate   DateTime
+  title        String
+  description  String            @db.Text
+  nextCheckAt  DateTime?
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+  pet          Pet               @relation(fields: [petId], references: [id], onDelete: Cascade)
+  vet          VetProfile        @relation(fields: [vetProfileId], references: [id], onDelete: Cascade)
+
+  @@index([petId])
+  @@index([vetProfileId])
+  @@map("medical_records")
+}
+
+model Appointment {
+  id                 String            @id @default(cuid())
+  petId              String
+  vetProfileId       String
+  requestedByUserId  String
+  scheduledAt        DateTime
+  reason             String?
+  status             AppointmentStatus @default(REQUESTED)
+  cancellationReason String?
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+  pet                Pet               @relation(fields: [petId], references: [id], onDelete: Cascade)
+  vet                VetProfile        @relation(fields: [vetProfileId], references: [id], onDelete: Cascade)
+
+  @@index([petId])
+  @@index([vetProfileId])
+  @@map("appointments")
+}
+
+model Reminder {
+  id           String         @id @default(cuid())
+  petId        String
+  vetProfileId String?
+  type         ReminderType
+  status       ReminderStatus @default(PENDING)
+  title        String
+  description  String?        @db.Text
+  dueAt        DateTime
+  completedAt  DateTime?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  pet          Pet            @relation(fields: [petId], references: [id], onDelete: Cascade)
+  vet          VetProfile?    @relation(fields: [vetProfileId], references: [id], onDelete: SetNull)
+
+  @@index([petId])
+  @@index([vetProfileId])
+  @@map("reminders")
+}
+
+model Conversation {
+  id           String      @id @default(cuid())
+  petId        String?
+  ownerId      String
+  vetProfileId String
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  pet          Pet?        @relation(fields: [petId], references: [id], onDelete: SetNull)
+  vet          VetProfile  @relation(fields: [vetProfileId], references: [id], onDelete: Cascade)
+  messages     Message[]
+
+  @@index([ownerId])
+  @@index([vetProfileId])
+  @@map("conversations")
+}
+
+model Message {
+  id             String       @id @default(cuid())
+  conversationId String
+  senderId       String
+  body           String       @db.Text
+  createdAt      DateTime     @default(now())
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender         User         @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId])
+  @@index([senderId])
+  @@map("messages")
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  actorUserId String?
+  action      String
+  entityType  String
+  entityId    String?
+  entityName  String?
+  summary     String   @db.Text
+  metadata    Json?
+  createdAt   DateTime @default(now())
+  actor       User?    @relation("AuditActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([actorUserId])
+  @@index([entityType, entityId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
