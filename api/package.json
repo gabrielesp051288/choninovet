@@ -10,7 +10,7 @@
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "start": "nest start",
     "check:port:api": "powershell -ExecutionPolicy Bypass -File ./scripts/check-port.ps1 3000",
-    "start:dev": "npm run check:port:api && nest start --watch",
+    "start:dev": "npm run check:port:api && npm run build && nest start --watch",
     "start:debug": "nest start --debug --watch",
     "start:prod": "node dist/main.js",
     "seed": "ts-node prisma/seed.ts",
