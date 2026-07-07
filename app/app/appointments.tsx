@@ -57,6 +57,7 @@ export default function AppointmentsScreen() {
   const [selectedDate, setSelectedDate] = useState(toIsoDate(today));
   const [selectedAgendaDate, setSelectedAgendaDate] = useState<string | null>(null);
   const [didAutoSelectAgendaDate, setDidAutoSelectAgendaDate] = useState(false);
+  const [isRequestFormOpen, setIsRequestFormOpen] = useState(false);
   const [selectedTime, setSelectedTime] = useState('');
   const [reason, setReason] = useState('');
   const [formError, setFormError] = useState<string | null>(null);
@@ -120,6 +121,7 @@ export default function AppointmentsScreen() {
 
     setSelectedTime('');
     setReason('');
+    setIsRequestFormOpen(false);
   }
 
   if (!isAllowed) {
@@ -138,12 +140,36 @@ export default function AppointmentsScreen() {
       <View style={styles.screenHeader}>
         <Text style={styles.kicker}>Turnos</Text>
         <Text style={styles.pageTitle}>Agenda de atencion</Text>
-        <Muted>Selecciona mascota, veterinaria, dia y horario. La veterinaria debe aprobar la solicitud.</Muted>
+        <Muted>
+          Revisa tus turnos por fecha o inicia una nueva solicitud cuando necesites atencion.
+        </Muted>
       </View>
 
-      {user?.role === 'OWNER' ? (
+      {user?.role === 'OWNER' && !isRequestFormOpen ? (
+        <Pressable onPress={() => setIsRequestFormOpen(true)} style={styles.requestEntryCard}>
+          <View style={styles.requestEntryIcon}>
+            <CalendarDays color={colors.primaryDark} size={28} strokeWidth={2.4} />
+          </View>
+          <View style={styles.requestEntryText}>
+            <Text style={styles.requestEntryTitle}>Solicitar turno</Text>
+            <Muted>Elegir mascota, veterinaria, dia y horario disponible.</Muted>
+          </View>
+          <ChevronRight color={colors.muted} size={22} strokeWidth={2.4} />
+        </Pressable>
+      ) : null}
+
+      {user?.role === 'OWNER' && isRequestFormOpen ? (
         <Card>
-          <SectionTitle>Solicitar turno</SectionTitle>
+          <View style={styles.formHeaderRow}>
+            <View style={styles.formHeaderText}>
+              <SectionTitle>Solicitar turno</SectionTitle>
+              <Muted>La veterinaria debe aprobar la solicitud antes de quedar confirmada.</Muted>
+            </View>
+            <Pressable onPress={() => setIsRequestFormOpen(false)} style={styles.cancelButton}>
+              <Text style={styles.cancelButtonText}>Cancelar</Text>
+            </Pressable>
+          </View>
+
           {petsQuery.isLoading || vetsQuery.isLoading ? (
             <Muted>Cargando datos para solicitud...</Muted>
           ) : null}
@@ -280,6 +306,7 @@ export default function AppointmentsScreen() {
         </Card>
       ) : null}
 
+      {!isRequestFormOpen || user?.role !== 'OWNER' ? (
       <Card>
         <SectionTitle>Agenda</SectionTitle>
         {appointmentsQuery.isLoading ? <Muted>Cargando turnos...</Muted> : null}
@@ -368,6 +395,7 @@ export default function AppointmentsScreen() {
           </View>
         ))}
       </Card>
+      ) : null}
     </Screen>
   );
 }
@@ -723,6 +751,61 @@ function emptyAppointmentsText(role?: 'OWNER' | 'VET' | 'ADMIN') {
 const styles = StyleSheet.create({
   screenHeader: {
     gap: spacing.xs,
+  },
+  requestEntryCard: {
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderRadius: 8,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: spacing.md,
+    minHeight: 104,
+    padding: spacing.md,
+  },
+  requestEntryIcon: {
+    alignItems: 'center',
+    backgroundColor: colors.surfaceAlt,
+    borderColor: colors.border,
+    borderRadius: 999,
+    borderWidth: 1,
+    height: 56,
+    justifyContent: 'center',
+    width: 56,
+  },
+  requestEntryText: {
+    flex: 1,
+    gap: 3,
+  },
+  requestEntryTitle: {
+    color: colors.text,
+    fontSize: 18,
+    fontWeight: '900',
+  },
+  formHeaderRow: {
+    alignItems: 'flex-start',
+    flexDirection: 'row',
+    gap: spacing.sm,
+    justifyContent: 'space-between',
+  },
+  formHeaderText: {
+    flex: 1,
+    gap: 3,
+  },
+  cancelButton: {
+    alignItems: 'center',
+    backgroundColor: colors.surfaceAlt,
+    borderColor: colors.border,
+    borderRadius: 8,
+    borderWidth: 1,
+    minHeight: 40,
+    justifyContent: 'center',
+    paddingHorizontal: spacing.sm,
+  },
+  cancelButtonText: {
+    color: colors.text,
+    fontSize: 13,
+    fontWeight: '900',
   },
   kicker: {
     color: colors.primary,
