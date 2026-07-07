@@ -160,14 +160,14 @@ export default function AppointmentsScreen() {
 
       {user?.role === 'OWNER' && isRequestFormOpen ? (
         <Card>
-          <View style={styles.formHeaderRow}>
-            <View style={styles.formHeaderText}>
-              <SectionTitle>Solicitar turno</SectionTitle>
-              <Muted>La veterinaria debe aprobar la solicitud antes de quedar confirmada.</Muted>
-            </View>
-            <Pressable onPress={() => setIsRequestFormOpen(false)} style={styles.cancelButton}>
-              <Text style={styles.cancelButtonText}>Cancelar</Text>
-            </Pressable>
+          <Pressable onPress={() => setIsRequestFormOpen(false)} style={styles.backToAgendaButton}>
+            <ChevronLeft color={colors.text} size={21} strokeWidth={2.4} />
+            <Text style={styles.backToAgendaText}>Volver a turnos</Text>
+          </Pressable>
+
+          <View style={styles.formHeaderText}>
+            <SectionTitle>Solicitar turno</SectionTitle>
+            <Muted>La veterinaria debe aprobar la solicitud antes de quedar confirmada.</Muted>
           </View>
 
           {petsQuery.isLoading || vetsQuery.isLoading ? (
@@ -302,6 +302,10 @@ export default function AppointmentsScreen() {
             <Text style={styles.buttonText}>
               {createAppointment.isPending ? 'Enviando solicitud...' : 'Enviar solicitud de turno'}
             </Text>
+          </Pressable>
+
+          <Pressable onPress={() => setIsRequestFormOpen(false)} style={styles.secondaryButton}>
+            <Text style={styles.secondaryButtonText}>Cancelar y volver a turnos</Text>
           </Pressable>
         </Card>
       ) : null}
@@ -782,29 +786,39 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '900',
   },
-  formHeaderRow: {
-    alignItems: 'flex-start',
-    flexDirection: 'row',
-    gap: spacing.sm,
-    justifyContent: 'space-between',
-  },
   formHeaderText: {
-    flex: 1,
     gap: 3,
   },
-  cancelButton: {
+  backToAgendaButton: {
     alignItems: 'center',
     backgroundColor: colors.surfaceAlt,
     borderColor: colors.border,
     borderRadius: 8,
     borderWidth: 1,
-    minHeight: 40,
+    flexDirection: 'row',
+    gap: spacing.xs,
+    minHeight: 48,
     justifyContent: 'center',
-    paddingHorizontal: spacing.sm,
+    paddingHorizontal: spacing.md,
   },
-  cancelButtonText: {
+  backToAgendaText: {
     color: colors.text,
-    fontSize: 13,
+    fontSize: 15,
+    fontWeight: '900',
+  },
+  secondaryButton: {
+    alignItems: 'center',
+    backgroundColor: colors.surfaceAlt,
+    borderColor: colors.border,
+    borderRadius: 8,
+    borderWidth: 1,
+    minHeight: 48,
+    justifyContent: 'center',
+    paddingHorizontal: spacing.md,
+  },
+  secondaryButtonText: {
+    color: colors.text,
+    fontSize: 15,
     fontWeight: '900',
   },
   kicker: {
