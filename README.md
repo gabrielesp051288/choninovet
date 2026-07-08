@@ -14,6 +14,39 @@ Esa referencia conecta directamente con el propósito del software: ayudar a cui
 
 MVP funcional en desarrollo activo.
 
+## Funcionalidades del MVP
+
+- Accesos separados para propietarios, veterinarios/as y administración.
+- Registro de propietarios con aprobación administrativa.
+- Alta de veterinarios/as desde administración.
+- Gestión de mascotas y fichas de paciente.
+- Solicitud de turnos por propietarios con calendario y horarios disponibles.
+- Agenda de turnos para veterinarios/as y administración.
+- Aprobación, rechazo y seguimiento de solicitudes de turno.
+- Historial médico por mascota.
+- Recordatorios clínicos.
+- Mensajería entre propietarios y veterinarios/as.
+- Alertas operativas.
+- Auditoría administrativa de acciones relevantes.
+
+## Flujos principales
+
+### Propietarios
+
+El propietario puede registrar mascotas, solicitar turnos, revisar su agenda, consultar fichas e historial, recibir recordatorios y comunicarse con veterinarios/as habilitados.
+
+### Veterinarios/as
+
+El panel veterinario/a funciona como dashboard de accesos mobile-first. Desde ahí se entra a:
+
+- `Agenda y solicitudes`: calendario, solicitudes pendientes, turnos confirmados y cambios de estado.
+- `Pacientes`: pantalla propia con listado de pacientes asociados y acceso a ficha clínica.
+- `Recordatorios`, `Alertas`, `Mensajes` y `Perfil`.
+
+### Administración
+
+La administración permite crear veterinarios/as, aprobar o rechazar cuentas de propietarios, revisar usuarios, pacientes, agenda, horarios de atención, métricas y auditoría.
+
 ## Stack principal
 
 - Frontend mobile/web: Expo SDK 54, React Native, Expo Router y React Native Web.
