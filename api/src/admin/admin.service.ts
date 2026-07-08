@@ -198,7 +198,7 @@ export class AdminService {
         email: createdUser.email,
         userId: createdUser.id,
       },
-      summary: `Creó la veterinaria ${createdUser.vetProfile?.clinicName ?? dto.clinicName}`,
+      summary: `Creó el veterinario/a ${createdUser.vetProfile?.clinicName ?? dto.clinicName}`,
     });
 
     return createdUser;
@@ -267,7 +267,7 @@ export class AdminService {
     });
 
     if (!vet) {
-      throw new NotFoundException('Veterinaria no encontrada');
+      throw new NotFoundException('Veterinario/a no encontrado');
     }
 
     return { type: 'vet', vet };

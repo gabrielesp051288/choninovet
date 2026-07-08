@@ -10,7 +10,7 @@ export default function OwnerAppScreen() {
         <Text style={styles.title}>La salud de tus mascotas en un solo lugar</Text>
         <Text style={styles.body}>
           Crea tus mascotas, solicita turnos, consulta historial y recibe
-          recordatorios de tu veterinaria.
+          recordatorios de tu veterinario/a.
         </Text>
       </View>
 

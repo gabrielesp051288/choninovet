@@ -49,7 +49,7 @@ export default function MessagesScreen() {
     setFormError(null);
 
     if (!selectedVetId) {
-      setFormError('Selecciona una veterinaria.');
+      setFormError('Selecciona un veterinario/a.');
       return;
     }
 
@@ -100,10 +100,10 @@ export default function MessagesScreen() {
       {user?.role === 'OWNER' ? (
         <Card>
           <SectionTitle>Nueva conversacion</SectionTitle>
-          {vetsQuery.isLoading ? <Muted>Cargando veterinarias...</Muted> : null}
+          {vetsQuery.isLoading ? <Muted>Cargando veterinarios/as...</Muted> : null}
           {vetsQuery.data?.length === 0 ? (
             <Muted>
-              Todavia no hay veterinarias habilitadas. Cuando administracion cree una,
+              Todavía no hay veterinarios/as habilitados. Cuando administración cree uno,
               podras iniciar una conversacion desde aca.
             </Muted>
           ) : null}
@@ -277,7 +277,7 @@ function roleLabel(role: 'OWNER' | 'VET' | 'ADMIN') {
   }
 
   if (role === 'VET') {
-    return 'Veterinaria';
+    return 'Veterinario/a';
   }
 
   return 'Administrador';
@@ -285,7 +285,7 @@ function roleLabel(role: 'OWNER' | 'VET' | 'ADMIN') {
 
 function conversationEmptyText(role?: 'OWNER' | 'VET' | 'ADMIN') {
   if (role === 'OWNER') {
-    return 'Todavia no tenes conversaciones. Usa Nueva conversacion para escribirle a una veterinaria habilitada.';
+    return 'Todavía no tenes conversaciones. Usa Nueva conversación para escribirle a un veterinario/a habilitado.';
   }
 
   if (role === 'VET') {

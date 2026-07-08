@@ -131,7 +131,7 @@ export class AuthService {
 
     if (user.role === UserRole.VET) {
       if (!user.vetProfile) {
-        throw new BadRequestException('Perfil de veterinaria no encontrado');
+        throw new BadRequestException('Perfil de veterinario/a no encontrado');
       }
 
       await this.prisma.vetProfile.update({

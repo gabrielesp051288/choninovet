@@ -346,8 +346,8 @@ const sections: Array<{
     metricKey: 'totalUsers',
   },
   {
-    label: 'Veterinarias',
-    description: 'Clinicas y profesionales',
+    label: 'Veterinarios/as',
+    description: 'Profesionales y clínicas',
     icon: 'vet',
     value: 'vets',
     metricKey: 'totalVets',
@@ -455,7 +455,7 @@ export default function AdminScreen() {
     setIsError(false);
 
     if (!email.trim() || !password || !clinicName.trim()) {
-      setStatus('Email, contrasena y nombre de veterinaria son obligatorios.');
+      setStatus('Email, contraseña y nombre profesional o clínica son obligatorios.');
       setIsError(true);
       setIsSaving(false);
       return;
@@ -475,7 +475,7 @@ export default function AdminScreen() {
         },
       });
 
-      setStatus('Veterinaria creada correctamente.');
+      setStatus('Veterinario/a creado correctamente.');
       setEmail('');
       setPassword('');
       setClinicName('');
@@ -485,7 +485,7 @@ export default function AdminScreen() {
       queryClient.invalidateQueries({ queryKey: ['admin-dashboard'] });
       setActiveSection('vets');
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : 'No se pudo crear la veterinaria.');
+      setStatus(error instanceof Error ? error.message : 'No se pudo crear el veterinario/a.');
       setIsError(true);
     } finally {
       setIsSaving(false);
@@ -616,10 +616,10 @@ export default function AdminScreen() {
       ) : null}
 
       {activeSection === 'create-vet' ? (
-        <SectionShell title="Alta de veterinaria" onBack={() => setActiveSection('dashboard')}>
+        <SectionShell title="Alta de veterinario/a" onBack={() => setActiveSection('dashboard')}>
           <Muted>
-            Las veterinarias no se registran desde el acceso publico. Se crean desde
-            administracion.
+            Los veterinarios/as no se registran desde el acceso público. Se crean desde
+            administración.
           </Muted>
           <View style={styles.form}>
             <TextInput
@@ -639,7 +639,7 @@ export default function AdminScreen() {
             />
             <TextInput
               onChangeText={setClinicName}
-              placeholder="Nombre de veterinaria"
+              placeholder="Nombre profesional o clínica"
               style={styles.input}
               value={clinicName}
             />
@@ -672,7 +672,7 @@ export default function AdminScreen() {
             style={[styles.button, isSaving && styles.buttonDisabled]}
           >
             <Text style={styles.buttonText}>
-              {isSaving ? 'Creando...' : 'Crear veterinaria'}
+              {isSaving ? 'Creando...' : 'Crear veterinario/a'}
             </Text>
           </Pressable>
           <Pressable
@@ -879,7 +879,7 @@ function VetDetailSection({ onBack, vet }: { onBack: () => void; vet: DetailVet 
       <View style={styles.rowHeader}>
         <View style={styles.accountTitle}>
           <SmallRoleIcon role="VET" />
-          <Text style={styles.rowTitle}>Ficha de veterinaria</Text>
+          <Text style={styles.rowTitle}>Ficha de veterinario/a</Text>
         </View>
         <StatusBadge status={vet.user.status} />
       </View>
@@ -951,7 +951,7 @@ function OwnerDetailSection({ onBack, owner }: { onBack: () => void; owner: Deta
               {pet.breed ? ` - ${pet.breed}` : ''}
             </Muted>
             <Muted>
-              Veterinarias: {pet._count.vets} - Turnos: {pet._count.appointments} - Historial:{' '}
+              Veterinarios/as: {pet._count.vets} - Turnos: {pet._count.appointments} - Historial:{' '}
               {pet._count.records} - Recordatorios: {pet._count.reminders}
             </Muted>
             {pet.vets.length > 0 ? (
@@ -988,7 +988,7 @@ function PetDetailSection({ onBack, pet }: { onBack: () => void; pet: DetailPet 
       <InfoLine label="Propietario" value={`${pet.owner.firstName} ${pet.owner.lastName}`} />
       <InfoLine label="Email propietario" value={pet.owner.user.email} />
 
-      <DetailList title="Veterinarias asociadas" emptyText="No tiene veterinarias asociadas.">
+      <DetailList title="Veterinarios/as asociados" emptyText="No tiene veterinarios/as asociados.">
         {pet.vets.map(({ vet }) => (
           <View key={vet.id} style={styles.row}>
             <Text style={styles.rowTitle}>{vet.clinicName}</Text>
@@ -1046,7 +1046,7 @@ function AppointmentsList({ appointments }: { appointments: DetailAppointment[] 
             <Badge>{appointmentStatusLabel(appointment.status)}</Badge>
           </View>
           <Muted>{formatDate(appointment.scheduledAt)}</Muted>
-          <InfoLine label="Veterinaria" value={appointment.vet?.clinicName} />
+          <InfoLine label="Veterinario/a" value={appointment.vet?.clinicName} />
           <InfoLine label="Motivo" value={appointment.reason} />
         </View>
       ))}
@@ -1065,7 +1065,7 @@ function MedicalRecordsList({ records }: { records: DetailMedicalRecord[] }) {
           </View>
           <Muted>{formatDateOnly(record.recordDate)}</Muted>
           <InfoLine label="Paciente" value={record.pet?.name} />
-          <InfoLine label="Veterinaria" value={record.vet?.clinicName} />
+          <InfoLine label="Veterinario/a" value={record.vet?.clinicName} />
           <Text style={styles.description}>{record.description}</Text>
           <InfoLine
             label="Proximo control"
@@ -1090,7 +1090,7 @@ function RemindersList({ reminders }: { reminders: DetailReminder[] }) {
             {reminderTypeLabel(reminder.type)} - {formatDate(reminder.dueAt)}
           </Muted>
           <InfoLine label="Paciente" value={reminder.pet?.name} />
-          <InfoLine label="Veterinaria" value={reminder.vet?.clinicName} />
+          <InfoLine label="Veterinario/a" value={reminder.vet?.clinicName} />
           <InfoLine label="Descripcion" value={reminder.description} />
         </View>
       ))}
@@ -1111,7 +1111,7 @@ function Overview({
   const metrics = [
     { label: 'Usuarios', value: dashboard.metrics.totalUsers },
     { label: 'Dueños', value: dashboard.metrics.totalOwners },
-    { label: 'Veterinarias', value: dashboard.metrics.totalVets },
+    { label: 'Veterinarios/as', value: dashboard.metrics.totalVets },
     { label: 'Mascotas', value: dashboard.metrics.totalPets },
     { label: 'Propietarios pendientes', value: dashboard.metrics.pendingOwnerAccounts },
     { label: 'Turnos', value: dashboard.metrics.totalAppointments },
@@ -1176,7 +1176,7 @@ function VetsSection({
   );
 
   return (
-    <SectionShell title="Veterinarias" onBack={onBack}>
+    <SectionShell title="Veterinarios/as" onBack={onBack}>
       <TextInput
         onChangeText={setQuery}
         placeholder="Buscar por nombre, email o telefono"
@@ -1185,12 +1185,12 @@ function VetsSection({
       />
       {vets.length === 0 ? (
         <ActionEmptyState
-          actionLabel="Crear veterinaria"
+          actionLabel="Crear veterinario/a"
           onAction={onCreateVet}
           text={
             query.trim()
-              ? 'No hay veterinarias para esa busqueda.'
-              : 'Todavia no hay veterinarias creadas. Crea una para habilitar turnos, pacientes y atencion.'
+              ? 'No hay veterinarios/as para esa búsqueda.'
+              : 'Todavía no hay veterinarios/as creados. Crea uno para habilitar turnos, pacientes y atención.'
           }
         />
       ) : null}
@@ -1270,8 +1270,8 @@ function UsersSection({
         updatingUserId={updatingUserId}
       />
       <AccountGroup
-        emptyText="No hay veterinarias creadas."
-        title="Veterinarias"
+        emptyText="No hay veterinarios/as creados."
+        title="Veterinarios/as"
         users={vets}
         onOpenDetail={onOpenDetail}
         onUpdateStatus={onUpdateStatus}
@@ -1630,7 +1630,7 @@ function AppointmentsSection({
         <>
           <TextInput
             onChangeText={setQuery}
-            placeholder="Buscar en este dia por mascota o veterinaria"
+            placeholder="Buscar en este día por mascota o veterinario/a"
             style={styles.input}
             value={query}
           />
@@ -1694,7 +1694,7 @@ function RemindersSection({
     <SectionShell title="Recordatorios" onBack={onBack}>
       <TextInput
         onChangeText={setQuery}
-        placeholder="Buscar por titulo, mascota o veterinaria"
+        placeholder="Buscar por título, mascota o veterinario/a"
         style={styles.input}
         value={query}
       />
@@ -1877,7 +1877,7 @@ function formatDate(value: string) {
 
 function auditActionLabel(action: string) {
   if (action === 'VET_CREATED') {
-    return 'Veterinaria creada';
+    return 'Veterinario/a creado';
   }
 
   if (action === 'USER_STATUS_CHANGED') {
@@ -1893,7 +1893,7 @@ function auditActionLabel(action: string) {
 
 function auditEntityLabel(entityType: string) {
   if (entityType === 'VET') {
-    return 'Veterinaria';
+    return 'Veterinario/a';
   }
 
   if (entityType === 'USER') {

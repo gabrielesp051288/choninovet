@@ -48,7 +48,7 @@ export default function ProfileScreen() {
     }
 
     if (user?.role === 'VET' && !clinicName.trim()) {
-      setStatus('El nombre de la veterinaria es obligatorio.');
+      setStatus('El nombre profesional o de la clínica es obligatorio.');
       setIsError(true);
       return;
     }
@@ -84,7 +84,7 @@ export default function ProfileScreen() {
       <Screen>
         <Card>
           <SectionTitle>Acceso requerido</SectionTitle>
-          <Muted>Inicia sesion como propietario o veterinaria para editar tu perfil.</Muted>
+          <Muted>Inicia sesión como propietario o veterinario/a para editar tu perfil.</Muted>
         </Card>
       </Screen>
     );
@@ -96,7 +96,7 @@ export default function ProfileScreen() {
         <View style={styles.headerText}>
           <Text style={styles.kicker}>Perfil</Text>
           <Text style={styles.title}>
-            {user?.role === 'VET' ? 'Datos de veterinaria' : 'Datos personales'}
+            {user?.role === 'VET' ? 'Datos profesionales' : 'Datos personales'}
           </Text>
           <Muted>Actualiza la informacion visible dentro del sistema.</Muted>
         </View>
@@ -113,7 +113,7 @@ export default function ProfileScreen() {
             )}
           </View>
           <View style={styles.cardTitleText}>
-            <SectionTitle>{user?.role === 'VET' ? 'Veterinaria' : 'Propietario'}</SectionTitle>
+            <SectionTitle>{user?.role === 'VET' ? 'Veterinario/a' : 'Propietario'}</SectionTitle>
             <Muted>{user?.email}</Muted>
           </View>
         </View>
@@ -146,7 +146,7 @@ export default function ProfileScreen() {
           <View style={styles.form}>
             <TextInput
               onChangeText={setClinicName}
-              placeholder="Nombre de veterinaria"
+              placeholder="Nombre profesional o clínica"
               style={styles.input}
               value={clinicName}
             />
@@ -172,7 +172,7 @@ export default function ProfileScreen() {
             <TextInput
               multiline
               onChangeText={setDescription}
-              placeholder="Descripcion de la clinica"
+              placeholder="Descripción profesional o de la clínica"
               style={[styles.input, styles.textArea]}
               value={description}
             />

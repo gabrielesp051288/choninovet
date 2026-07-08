@@ -107,7 +107,7 @@ export default function AppointmentsScreen() {
     setFormError(null);
 
     if (!selectedPetId || !selectedVetId || !selectedDate || !selectedTime) {
-      setFormError('Mascota, veterinaria, dia y horario son obligatorios.');
+      setFormError('Mascota, veterinario/a, día y horario son obligatorios.');
       return;
     }
 
@@ -152,7 +152,7 @@ export default function AppointmentsScreen() {
           </View>
           <View style={styles.requestEntryText}>
             <Text style={styles.requestEntryTitle}>Solicitar turno</Text>
-            <Muted>Elegir mascota, veterinaria, dia y horario disponible.</Muted>
+            <Muted>Elegir mascota, veterinario/a, día y horario disponible.</Muted>
           </View>
           <ChevronRight color={colors.muted} size={22} strokeWidth={2.4} />
         </Pressable>
@@ -167,7 +167,7 @@ export default function AppointmentsScreen() {
 
           <View style={styles.formHeaderText}>
             <SectionTitle>Solicitar turno</SectionTitle>
-            <Muted>La veterinaria debe aprobar la solicitud antes de quedar confirmada.</Muted>
+            <Muted>El veterinario/a debe aprobar la solicitud antes de quedar confirmada.</Muted>
           </View>
 
           {petsQuery.isLoading || vetsQuery.isLoading ? (
@@ -183,8 +183,8 @@ export default function AppointmentsScreen() {
           ) : null}
           {vetsQuery.data?.length === 0 ? (
             <Muted>
-              Todavia no hay veterinarias habilitadas. Un administrador debe crear una
-              veterinaria antes de que puedas solicitar turnos.
+              Todavía no hay veterinarios/as habilitados. Un administrador debe crear uno
+              antes de que puedas solicitar turnos.
             </Muted>
           ) : null}
           {scheduleQuery.isLoading ? <Muted>Cargando horarios disponibles...</Muted> : null}
@@ -203,7 +203,7 @@ export default function AppointmentsScreen() {
             </View>
           </PickerSection>
 
-          <PickerSection icon="vet" title="Veterinaria">
+          <PickerSection icon="vet" title="Veterinario/a">
             <View style={styles.selector}>
               {vetsQuery.data?.map((vet) => (
                 <Pressable
@@ -232,7 +232,7 @@ export default function AppointmentsScreen() {
 
           <PickerSection icon="time" title="Horario">
             {!selectedSchedule?.isEnabled ? (
-              <Muted>La veterinaria no atiende turnos ese dia.</Muted>
+              <Muted>El veterinario/a no atiende turnos ese día.</Muted>
             ) : null}
             <View style={styles.timeGrid}>
               {timeSlots.map((slot) => {
@@ -742,11 +742,11 @@ function formatAppointmentDate(value: string) {
 
 function emptyAppointmentsText(role?: 'OWNER' | 'VET' | 'ADMIN') {
   if (role === 'OWNER') {
-    return 'No tenes turnos registrados. Si ya cargaste una mascota y hay veterinarias disponibles, completa la solicitud de turno arriba.';
+    return 'No tenes turnos registrados. Si ya cargaste una mascota y hay veterinarios/as disponibles, completa la solicitud de turno arriba.';
   }
 
   if (role === 'VET') {
-    return 'No hay turnos asignados a esta veterinaria. Las solicitudes apareceran aca cuando los propietarios pidan turnos.';
+    return 'No hay turnos asignados a este veterinario/a. Las solicitudes aparecerán acá cuando los propietarios pidan turnos.';
   }
 
   return 'No hay turnos registrados en el sistema.';

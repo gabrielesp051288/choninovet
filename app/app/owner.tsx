@@ -57,7 +57,7 @@ const ownerActions: OwnerAction[] = [
   },
   {
     title: 'Mensajes',
-    description: 'Conversaciones con veterinarias',
+    description: 'Conversaciones con veterinarios/as',
     href: '/messages',
     icon: 'messages',
   },

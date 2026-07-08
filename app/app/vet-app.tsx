@@ -6,21 +6,21 @@ export default function VetAppScreen() {
   return (
     <Screen>
       <View style={styles.hero}>
-        <Text style={styles.kicker}>Veterinarias</Text>
-        <Text style={styles.title}>Panel de trabajo para clinicas y profesionales</Text>
+        <Text style={styles.kicker}>Veterinarios/as</Text>
+        <Text style={styles.title}>Panel de trabajo para profesionales veterinarios/as</Text>
         <Text style={styles.body}>
           Gestiona pacientes, turnos, historial medico, recordatorios y mensajes
-          desde una experiencia separada para veterinarias.
+          desde una experiencia separada para profesionales veterinarios/as.
         </Text>
       </View>
 
       <Card>
         <Text style={styles.cardTitle}>Acceso profesional</Text>
         <Muted>
-          Las cuentas de veterinaria son habilitadas por administracion. No se
+          Las cuentas de veterinario/a son habilitadas por administración. No se
           crean desde el registro publico.
         </Muted>
-        <ActionLink href="/login?role=VET">Iniciar sesion veterinaria</ActionLink>
+        <ActionLink href="/login?role=VET">Iniciar sesión veterinario/a</ActionLink>
       </Card>
 
       <Card>

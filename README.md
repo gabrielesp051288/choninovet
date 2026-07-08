@@ -2,7 +2,7 @@
 
 **Gestión Veterinaria de Código Abierto**
 
-choninovet es una aplicación web y móvil para la gestión veterinaria, pensada para separar claramente la experiencia de propietarios, veterinarias y administración. El proyecto apunta a cubrir el flujo operativo principal: usuarios, mascotas, turnos, agenda, historial médico, recordatorios, mensajería, alertas y auditoría administrativa.
+choninovet es una aplicación web y móvil para la gestión veterinaria, pensada para separar claramente la experiencia de propietarios, veterinarios/as y administración. El proyecto apunta a cubrir el flujo operativo principal: usuarios, mascotas, turnos, agenda, historial médico, recordatorios, mensajería, alertas y auditoría administrativa.
 
 ## ¿Por qué Chonino?
 

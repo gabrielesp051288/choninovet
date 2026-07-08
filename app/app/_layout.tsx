@@ -29,7 +29,8 @@ export default function RootLayout() {
         <Stack.Screen name="register" options={{ title: 'Crear cuenta' }} />
         <Stack.Screen name="forgot-password" options={{ title: 'Recuperar contrasena' }} />
         <Stack.Screen name="owner" options={{ title: 'Propietario' }} />
-        <Stack.Screen name="vet" options={{ title: 'Veterinaria' }} />
+        <Stack.Screen name="vet" options={{ title: 'Veterinario/a' }} />
+        <Stack.Screen name="vet-patients" options={{ title: 'Pacientes' }} />
         <Stack.Screen name="admin" options={{ title: 'Administrador' }} />
         <Stack.Screen name="profile" options={{ title: 'Perfil' }} />
         <Stack.Screen name="pet/[id]" options={{ title: 'Ficha de mascota' }} />

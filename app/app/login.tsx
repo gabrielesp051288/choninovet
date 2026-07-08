@@ -22,14 +22,14 @@ const roles: Array<{
     value: 'OWNER',
   },
   {
-    label: 'Veterinaria',
+    label: 'Veterinario/a',
     description: 'Pacientes, agenda, recordatorios y salud',
     icon: 'vet',
     value: 'VET',
   },
   {
     label: 'Admin',
-    description: 'Panel operativo y alta de veterinarias',
+    description: 'Panel operativo y alta de profesionales',
     icon: 'admin',
     value: 'ADMIN',
   },
@@ -144,7 +144,7 @@ export default function LoginScreen() {
           </ActionLink>
         ) : selectedRole === 'VET' ? (
           <Text style={styles.note}>
-            Las cuentas de veterinaria son creadas desde administracion.
+            Las cuentas de veterinario/a son creadas desde administración.
           </Text>
         ) : (
           <Text style={styles.note}>

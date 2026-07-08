@@ -6,7 +6,6 @@ import {
   CheckCircle,
   ChevronRight,
   MessageCircle,
-  PawPrint,
   Stethoscope,
   UserRound,
   XCircle,
@@ -24,7 +23,7 @@ import { useUpdateAppointmentStatus } from './hooks/use-appointments';
 import { useVetAppointments, useVetPets } from './hooks/use-vet-dashboard';
 import { useRequireRole } from './lib/auth-routing';
 import { formatDateOnly } from './lib/dates';
-import { appointmentStatusLabel, petSexLabel } from './lib/labels';
+import { appointmentStatusLabel } from './lib/labels';
 import type { Appointment } from './lib/types';
 import { useAuthStore } from './stores/auth-store';
 import { colors, spacing } from './theme';
@@ -44,7 +43,7 @@ export default function VetScreen() {
   const petsQuery = useVetPets();
   const appointmentsQuery = useVetAppointments();
   const updateStatus = useUpdateAppointmentStatus();
-  const clinicName = user?.vetProfile?.clinicName ?? 'Veterinaria';
+  const clinicName = user?.vetProfile?.clinicName ?? 'Veterinario/a';
   const appointments = appointmentsQuery.data ?? [];
   const pendingAppointments = appointments.filter((item) => item.status === 'REQUESTED');
   const upcomingConfirmedAppointments = appointments.filter(
@@ -63,7 +62,7 @@ export default function VetScreen() {
     {
       title: 'Pacientes',
       description: 'Fichas e historial medico',
-      href: '#patients',
+      href: '/vet-patients',
       icon: 'patients',
       count: petsQuery.data?.length ?? 0,
     },
@@ -87,7 +86,7 @@ export default function VetScreen() {
     },
     {
       title: 'Perfil',
-      description: 'Datos de clinica y contacto',
+      description: 'Datos profesionales y contacto',
       href: '/profile',
       icon: 'profile',
     },
@@ -97,8 +96,8 @@ export default function VetScreen() {
     return (
       <Screen>
         <Card>
-          <SectionTitle>Acceso veterinaria requerido</SectionTitle>
-          <Muted>Inicia sesion como veterinaria para ver esta pantalla.</Muted>
+          <SectionTitle>Acceso veterinario/a requerido</SectionTitle>
+          <Muted>Inicia sesión como veterinario/a para ver esta pantalla.</Muted>
         </Card>
       </Screen>
     );
@@ -108,7 +107,7 @@ export default function VetScreen() {
     <Screen>
       <View style={styles.headerRow}>
         <View style={styles.headerText}>
-          <Text style={styles.kicker}>Veterinaria</Text>
+          <Text style={styles.kicker}>Veterinario/a</Text>
           <Text style={styles.title}>{clinicName}</Text>
           <Muted>Gestiona solicitudes, agenda, pacientes y comunicacion.</Muted>
         </View>
@@ -119,11 +118,7 @@ export default function VetScreen() {
         {actions.map((action) => (
           <Pressable
             key={action.title}
-            onPress={() => {
-              if (action.href !== '#patients') {
-                router.push(action.href);
-              }
-            }}
+            onPress={() => router.push(action.href)}
             style={styles.actionTile}
           >
             <View style={styles.tileTop}>
@@ -148,115 +143,83 @@ export default function VetScreen() {
         <MetricCard label="Hoy" value={todayAppointments.length} />
       </View>
 
-      <Card>
-        <View style={styles.cardTitleRow}>
-          <View style={styles.smallIconCircle}>
-            <CalendarClock color={colors.primaryDark} size={21} strokeWidth={2.4} />
-          </View>
-          <View style={styles.cardTitleText}>
-            <SectionTitle>Solicitudes pendientes</SectionTitle>
-            <Muted>Turnos enviados por propietarios para aprobacion.</Muted>
-          </View>
-        </View>
-
-        {appointmentsQuery.isLoading ? <Muted>Cargando solicitudes...</Muted> : null}
-        {appointmentsQuery.error ? <Muted>No se pudieron cargar los turnos.</Muted> : null}
-        {!appointmentsQuery.isLoading && pendingAppointments.length === 0 ? (
-          <EmptyState text="No hay solicitudes pendientes de aprobacion. Cuando un propietario pida turno, aparecera aca para aprobarlo o rechazarlo." />
-        ) : null}
-
-        {pendingAppointments.slice(0, 5).map((appointment) => (
-          <AppointmentRequest
-            key={appointment.id}
-            appointment={appointment}
-            isUpdating={updateStatus.isPending}
-            onApprove={() =>
-              updateStatus.mutate({
-                appointmentId: appointment.id,
-                status: 'CONFIRMED',
-              })
-            }
-            onReject={() =>
-              updateStatus.mutate({
-                appointmentId: appointment.id,
-                status: 'CANCELLED',
-              })
-            }
-          />
-        ))}
-
-        {pendingAppointments.length > 5 ? (
-          <Pressable onPress={() => router.push('/appointments')} style={styles.secondaryButton}>
-            <Text style={styles.secondaryButtonText}>Ver todas las solicitudes</Text>
-          </Pressable>
-        ) : null}
-      </Card>
-
-      <Card>
-        <View style={styles.cardTitleRow}>
-          <View style={styles.smallIconCircle}>
-            <CalendarCheck color={colors.primaryDark} size={21} strokeWidth={2.4} />
-          </View>
-          <View style={styles.cardTitleText}>
-            <SectionTitle>Agenda confirmada</SectionTitle>
-            <Muted>Próximos turnos aprobados.</Muted>
-          </View>
-        </View>
-
-        {upcomingConfirmedAppointments.length === 0 ? (
-          <EmptyState
-            actionLabel="Abrir agenda"
-            onAction={() => router.push('/appointments')}
-            text="Todavía no hay turnos próximos confirmados. Revisa la agenda para ver solicitudes, turnos pasados y turnos por fecha."
-          />
-        ) : null}
-        {upcomingConfirmedAppointments.slice(0, 5).map((appointment) => (
-          <Pressable
-            key={appointment.id}
-            onPress={() => router.push(`/pet/${appointment.pet.id}`)}
-            style={styles.row}
-          >
-            <View style={styles.rowText}>
-              <Text style={styles.rowTitle}>{appointment.pet.name}</Text>
-              <Muted>{formatAppointmentDate(appointment.scheduledAt)}</Muted>
+          <Card>
+            <View style={styles.cardTitleRow}>
+              <View style={styles.smallIconCircle}>
+                <CalendarClock color={colors.primaryDark} size={21} strokeWidth={2.4} />
+              </View>
+              <View style={styles.cardTitleText}>
+                <SectionTitle>Solicitudes pendientes</SectionTitle>
+                <Muted>Turnos enviados por propietarios para aprobacion.</Muted>
+              </View>
             </View>
-            <Badge>{appointmentStatusLabel(appointment.status)}</Badge>
-          </Pressable>
-        ))}
-      </Card>
 
-      <Card>
-        <View style={styles.cardTitleRow}>
-          <View style={styles.smallIconCircle}>
-            <PawPrint color={colors.primaryDark} size={21} strokeWidth={2.4} />
-          </View>
-          <View style={styles.cardTitleText}>
-            <SectionTitle>Pacientes</SectionTitle>
-            <Muted>Mascotas asociadas a la veterinaria.</Muted>
-          </View>
-        </View>
+            {appointmentsQuery.isLoading ? <Muted>Cargando solicitudes...</Muted> : null}
+            {appointmentsQuery.error ? <Muted>No se pudieron cargar los turnos.</Muted> : null}
+            {!appointmentsQuery.isLoading && pendingAppointments.length === 0 ? (
+              <EmptyState text="No hay solicitudes pendientes de aprobacion. Cuando un propietario pida turno, aparecera aca para aprobarlo o rechazarlo." />
+            ) : null}
 
-        {petsQuery.isLoading ? <Muted>Cargando pacientes...</Muted> : null}
-        {petsQuery.error ? <Muted>No se pudieron cargar los pacientes.</Muted> : null}
-        {petsQuery.data?.length === 0 ? (
-          <EmptyState text="Todavia no hay pacientes asociados. Los pacientes aparecen cuando un propietario solicita un turno o vincula una mascota con esta veterinaria." />
-        ) : null}
-        {petsQuery.data?.slice(0, 5).map((pet) => (
-          <Pressable
-            key={pet.id}
-            onPress={() => router.push(`/pet/${pet.id}`)}
-            style={styles.row}
-          >
-            <View style={styles.rowText}>
-              <Text style={styles.rowTitle}>{pet.name}</Text>
-              <Muted>
-                {formatOwner(pet.owner)} - {pet.species}
-              </Muted>
+            {pendingAppointments.slice(0, 5).map((appointment) => (
+              <AppointmentRequest
+                key={appointment.id}
+                appointment={appointment}
+                isUpdating={updateStatus.isPending}
+                onApprove={() =>
+                  updateStatus.mutate({
+                    appointmentId: appointment.id,
+                    status: 'CONFIRMED',
+                  })
+                }
+                onReject={() =>
+                  updateStatus.mutate({
+                    appointmentId: appointment.id,
+                    status: 'CANCELLED',
+                  })
+                }
+              />
+            ))}
+
+            {pendingAppointments.length > 5 ? (
+              <Pressable onPress={() => router.push('/appointments')} style={styles.secondaryButton}>
+                <Text style={styles.secondaryButtonText}>Ver todas las solicitudes</Text>
+              </Pressable>
+            ) : null}
+          </Card>
+
+          <Card>
+            <View style={styles.cardTitleRow}>
+              <View style={styles.smallIconCircle}>
+                <CalendarCheck color={colors.primaryDark} size={21} strokeWidth={2.4} />
+              </View>
+              <View style={styles.cardTitleText}>
+                <SectionTitle>Agenda confirmada</SectionTitle>
+                <Muted>Próximos turnos aprobados.</Muted>
+              </View>
             </View>
-            <Badge>{petSexLabel(pet.sex)}</Badge>
-          </Pressable>
-        ))}
-      </Card>
+
+            {upcomingConfirmedAppointments.length === 0 ? (
+              <EmptyState
+                actionLabel="Abrir agenda"
+                onAction={() => router.push('/appointments')}
+                text="Todavía no hay turnos próximos confirmados. Revisa la agenda para ver solicitudes, turnos pasados y turnos por fecha."
+              />
+            ) : null}
+            {upcomingConfirmedAppointments.slice(0, 5).map((appointment) => (
+              <Pressable
+                key={appointment.id}
+                onPress={() => router.push(`/pet/${appointment.pet.id}`)}
+                style={styles.row}
+              >
+                <View style={styles.rowText}>
+                  <Text style={styles.rowTitle}>{appointment.pet.name}</Text>
+                  <Muted>{formatAppointmentDate(appointment.scheduledAt)}</Muted>
+                </View>
+                <Badge>{appointmentStatusLabel(appointment.status)}</Badge>
+              </Pressable>
+            ))}
+          </Card>
+
     </Screen>
   );
 }
@@ -358,10 +321,6 @@ function EmptyState({
       ) : null}
     </View>
   );
-}
-
-function formatOwner(owner?: { firstName: string; lastName: string }) {
-  return owner ? `${owner.firstName} ${owner.lastName}` : 'Sin propietario';
 }
 
 function isToday(value: string) {
