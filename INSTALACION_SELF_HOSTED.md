@@ -205,29 +205,71 @@ http://192.168.1.50:3000/api
 
 La URL también se puede cambiar luego desde el menú hamburguesa, opción `Servidor`.
 
-Desde una cuenta administradora, el panel `Sistema` permite ver el estado de la API,
-la conexión MySQL, migraciones aplicadas y administrador inicial. También permite
-probar conexión y cambiar la base de datos como acción avanzada con confirmación.
+Desde una cuenta administradora, el panel `Sistema` permite ver el estado de la API, la conexión MySQL, migraciones aplicadas y administrador inicial. También permite probar conexión y cambiar la base de datos como acción avanzada con confirmación.
 
-## Uso en red local
+## Distribución sin Play Store
 
-Para que otros dispositivos puedan acceder:
+choninovet puede distribuirse sin Play Store de tres formas:
+
+- como web app dentro de una red local;
+- como web app publicada desde un VPS;
+- como APK Android instalado manualmente.
+
+En todos los casos, la app debe apuntar a una API choninovet accesible. La app no incluye la base de datos; la base MySQL vive en el servidor de cada negocio.
+
+## Uso como web app en red local
+
+Este modo sirve para un negocio que usa una PC o servidor dentro del local.
+
+Condiciones necesarias:
 
 - la PC/servidor debe estar encendida;
+- MySQL debe estar corriendo;
 - la API debe estar corriendo;
-- el firewall debe permitir el puerto `3000`;
+- la app web debe estar corriendo si se usa por navegador;
+- el firewall debe permitir el puerto de API, por defecto `3000`;
 - conviene fijar una IP local para la PC/servidor;
-- los celulares deben usar la URL de API con IP local, no `localhost`.
+- los celulares y otras PCs deben usar la IP local, no `localhost`.
 
-Ejemplo:
+Ejemplo de API para configurar en celulares:
 
 ```text
-http://192.168.1.50:3000
+http://192.168.1.50:3000/api
 ```
+
+Ejemplo de verificación:
+
+```text
+http://192.168.1.50:3000/api/health
+```
+
+Si responde `status: ok`, la API es accesible desde la red.
+
+## Uso desde VPS
+
+Este modo sirve para acceder desde fuera del local o desde varias sucursales.
+
+Recomendaciones mínimas:
+
+- publicar la API en un dominio o subdominio;
+- usar HTTPS;
+- no exponer MySQL públicamente si no es necesario;
+- abrir solo el puerto de la API o el proxy web;
+- cambiar siempre `JWT_SECRET`;
+- usar un usuario MySQL específico para choninovet;
+- configurar backups periódicos.
+
+Ejemplo de URL de API para configurar en la app:
+
+```text
+https://api.midominio.com/api
+```
+
+Para este modo, el APK o la web app deben apuntar a una API accesible por internet.
 
 ## Generar APK instalable
 
-Para distribuir sin Play Store, se puede generar un APK con Expo/EAS. El APK debe apuntar a una API accesible por red local o por internet.
+Para distribuir sin Play Store, se puede generar un APK con Expo/EAS. El APK se instala manualmente en dispositivos Android y luego se configura con la URL de API del negocio.
 
 Instalar EAS si no está instalado:
 
@@ -241,17 +283,59 @@ Desde `app`:
 eas build -p android --profile preview
 ```
 
-El archivo generado se puede instalar manualmente en dispositivos Android. Para uso fuera de una red local, la API debe estar publicada en un VPS o dominio accesible.
+El archivo generado se puede instalar manualmente en dispositivos Android. En el dispositivo puede ser necesario habilitar la instalación desde orígenes desconocidos.
 
-## Recomendaciones para VPS
+Cuando se abre la app por primera vez, ingresar la URL de API:
 
-- Usar HTTPS.
-- Cambiar siempre `JWT_SECRET`.
-- No exponer MySQL públicamente si no es necesario.
-- Abrir solo el puerto de API necesario.
-- Configurar backups periódicos de MySQL.
+```text
+http://192.168.1.50:3000/api
+```
+
+o, si se usa VPS:
+
+```text
+https://api.midominio.com/api
+```
+
+La URL también se puede cambiar luego desde el menú hamburguesa, opción `Servidor`.
+
+## Configuración de URL de API en celulares
+
+Usar `localhost` solo cuando la app y la API corren en la misma máquina. En celulares, `localhost` apunta al propio teléfono, no a la PC del negocio.
+
+Ejemplos correctos:
+
+```text
+http://192.168.1.50:3000/api
+https://api.midominio.com/api
+```
+
+Ejemplos incorrectos en celulares:
+
+```text
+http://localhost:3000/api
+http://127.0.0.1:3000/api
+```
+
+## Red local, IP fija y firewall
+
+Para evitar que la app deje de conectar:
+
+- asignar IP fija a la PC/servidor desde el router o desde Windows;
+- mantener el puerto de API estable, por ejemplo `3000`;
+- permitir el puerto en el firewall de Windows;
+- verificar que celulares y PC estén en la misma red Wi-Fi/LAN;
+- probar desde el celular abriendo `http://IP_DEL_SERVIDOR:3000/api/health`.
+
+Regla de firewall orientativa en PowerShell ejecutado como administrador:
+
+```powershell
+New-NetFirewallRule -DisplayName "choninovet API 3000" -Direction Inbound -Protocol TCP -LocalPort 3000 -Action Allow
+```
 
 ## Backup mínimo de MySQL
+
+Hacer backups periódicos antes de actualizaciones o cambios de servidor.
 
 Exportar backup:
 
@@ -264,6 +348,8 @@ Restaurar backup:
 ```powershell
 mysql -u usuario -p choninovet < choninovet_backup.sql
 ```
+
+Recomendación mínima: guardar al menos una copia diaria y una copia antes de aplicar migraciones o cambiar de base.
 
 ## Notas importantes
 

@@ -260,7 +260,24 @@ Ese comando elimina datos. No debe usarse sobre una base real sin backup.
 
 ## Distribución sin Play Store
 
-choninovet puede usarse como app web en red local o desde un VPS. Para Android también se puede generar un APK instalable con Expo/EAS.
+choninovet puede usarse sin Play Store de tres maneras:
+
+- web app en red local;
+- web app publicada desde un VPS;
+- APK Android instalado manualmente.
+
+En todos los casos, cada dispositivo debe configurar la URL de API del negocio. En celulares no se debe usar `localhost`; se debe usar la IP local del servidor o el dominio del VPS.
+
+Ejemplos:
+
+```text
+http://192.168.1.50:3000/api
+https://api.midominio.com/api
+```
+
+Para más detalle sobre red local, VPS, firewall, APK y backups, ver:
+
+[Instalación self-hosted sin Docker](./INSTALACION_SELF_HOSTED.md)
 
 Instalar EAS:
 
