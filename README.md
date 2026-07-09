@@ -152,6 +152,19 @@ Respuesta esperada:
 }
 ```
 
+Estado de instalación:
+
+```text
+http://localhost:3000/api/setup/status
+```
+
+La API también expone endpoints de setup inicial:
+
+- `POST /api/setup/database`: valida MySQL, aplica migraciones y guarda `DATABASE_URL` en el servidor.
+- `POST /api/setup/admin`: crea el administrador inicial si todavía no existe.
+
+Después de configurar o cambiar la base desde setup, se recomienda reiniciar la API para que todos los módulos usen la nueva conexión.
+
 Si se usa desde celulares en la misma red, reemplazar `localhost` por la IP de la PC o servidor:
 
 ```text

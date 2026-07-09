@@ -94,6 +94,55 @@ Debe responder:
 }
 ```
 
+También se puede consultar el estado de instalación:
+
+```text
+http://localhost:3000/api/setup/status
+```
+
+Ese endpoint indica si la API tiene base configurada, si pudo conectarse, si las migraciones están aplicadas y si ya existe un administrador inicial.
+
+## Setup inicial por API
+
+Para instalaciones nuevas, el backend expone endpoints de setup.
+
+Configurar y validar base de datos:
+
+```http
+POST /api/setup/database
+```
+
+Body:
+
+```json
+{
+  "host": "localhost",
+  "port": 3306,
+  "database": "choninovet",
+  "username": "usuario",
+  "password": "password"
+}
+```
+
+La API prueba la conexión MySQL, ejecuta `prisma migrate deploy`, guarda `DATABASE_URL` en `api/.env` y responde si se requiere reiniciar el backend.
+
+Crear administrador inicial:
+
+```http
+POST /api/setup/admin
+```
+
+Body:
+
+```json
+{
+  "email": "admin@choninovet.local",
+  "password": "Cambiar1234"
+}
+```
+
+Por seguridad, este endpoint solo crea el administrador si todavía no existe ninguna cuenta administradora.
+
 Si se usa desde celulares en la misma red, reemplazar `localhost` por la IP de la PC/servidor:
 
 ```text

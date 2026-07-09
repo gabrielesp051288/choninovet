@@ -10,6 +10,7 @@ import { PetsModule } from './pets/pets.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { RemindersModule } from './reminders/reminders.module';
 import { ScheduleModule } from './schedule/schedule.module';
+import { SetupModule } from './setup/setup.module';
 import { VetsModule } from './vets/vets.module';
 
 @Module({
@@ -28,6 +29,7 @@ import { VetsModule } from './vets/vets.module';
     RemindersModule,
     MessagesModule,
     ScheduleModule,
+    SetupModule,
   ],
 })
 export class AppModule {}
