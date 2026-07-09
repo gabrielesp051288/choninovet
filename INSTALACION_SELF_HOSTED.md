@@ -177,6 +177,10 @@ http://192.168.1.50:3000/api
 
 La URL también se puede cambiar luego desde el menú hamburguesa, opción `Servidor`.
 
+Desde una cuenta administradora, el panel `Sistema` permite ver el estado de la API,
+la conexión MySQL, migraciones aplicadas y administrador inicial. También permite
+probar conexión y cambiar la base de datos como acción avanzada con confirmación.
+
 ## Uso en red local
 
 Para que otros dispositivos puedan acceder:

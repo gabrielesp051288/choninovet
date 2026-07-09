@@ -68,7 +68,11 @@ export function ActionLink({
   );
 }
 
-export function SessionMenu() {
+type SessionMenuProps = {
+  onSystemConfig?: () => void;
+};
+
+export function SessionMenu({ onSystemConfig }: SessionMenuProps = {}) {
   const router = useRouter();
   const logout = useAuthStore((state) => state.logout);
   const [isOpen, setIsOpen] = useState(false);
@@ -84,6 +88,11 @@ export function SessionMenu() {
     router.push('/server-config');
   }
 
+  function handleSystemConfig() {
+    setIsOpen(false);
+    onSystemConfig?.();
+  }
+
   return (
     <View style={styles.menuContainer}>
       <Pressable
@@ -96,6 +105,12 @@ export function SessionMenu() {
 
       {isOpen ? (
         <View style={styles.menuPanel}>
+          {onSystemConfig ? (
+            <Pressable onPress={handleSystemConfig} style={styles.menuItem}>
+              <ServerCog color={colors.text} size={18} strokeWidth={2.4} />
+              <Text style={styles.menuText}>Sistema</Text>
+            </Pressable>
+          ) : null}
           <Pressable onPress={handleServerConfig} style={styles.menuItem}>
             <ServerCog color={colors.text} size={18} strokeWidth={2.4} />
             <Text style={styles.menuText}>Servidor</Text>

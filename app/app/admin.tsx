@@ -7,9 +7,12 @@ import {
   ChevronLeft,
   ChevronRight,
   Clock,
+  Database,
   Eye,
   History,
   PawPrint,
+  RefreshCcw,
+  ServerCog,
   ShieldCheck,
   Stethoscope,
   TriangleAlert,
@@ -39,6 +42,7 @@ import {
   reminderTypeLabel,
 } from './lib/labels';
 import type { AppointmentStatus, MedicalRecordType, PetSex, ReminderStatus, ReminderType } from './lib/types';
+import { useApiConfigStore } from './stores/api-config-store';
 import { useAuthStore } from './stores/auth-store';
 import { colors, spacing } from './theme';
 
@@ -51,6 +55,7 @@ type AdminSection =
   | 'reminders'
   | 'schedule'
   | 'audit'
+  | 'system'
   | 'create-vet'
   | 'detail';
 type AdminIconKind =
@@ -61,6 +66,7 @@ type AdminIconKind =
   | 'reminders'
   | 'schedule'
   | 'audit'
+  | 'system'
   | 'add';
 type AccountStatus = 'PENDING' | 'ACTIVE' | 'REJECTED';
 type AdminDetailTarget = {
@@ -331,6 +337,20 @@ type AdminDashboard = {
   }>;
 };
 
+type SetupStatus = {
+  status: 'ready' | 'setup_required';
+  database: {
+    configured: boolean;
+    connected: boolean;
+    migrationsApplied: boolean;
+    hasAdmin: boolean;
+    error: string | null;
+  };
+  needsDatabase: boolean;
+  needsMigrations: boolean;
+  needsAdmin: boolean;
+};
+
 const sections: Array<{
   label: string;
   description: string;
@@ -386,6 +406,12 @@ const sections: Array<{
     value: 'audit',
   },
   {
+    label: 'Sistema',
+    description: 'API, MySQL y servidor',
+    icon: 'system',
+    value: 'system',
+  },
+  {
     label: 'Alta vet',
     description: 'Crear acceso profesional',
     icon: 'add',
@@ -396,10 +422,16 @@ const adminWeekDays = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
 
 export default function AdminScreen() {
   const { isAllowed } = useRequireRole(['ADMIN']);
+  const apiUrl = useApiConfigStore((state) => state.apiUrl);
   const accessToken = useAuthStore((state) => state.accessToken);
   const queryClient = useQueryClient();
   const scheduleQuery = useSchedule();
   const updateSchedule = useUpdateSchedule();
+  const setupStatusQuery = useQuery({
+    queryKey: ['setup-status'],
+    queryFn: () => apiRequest<SetupStatus>('/setup/status', { token: accessToken }),
+    enabled: Boolean(accessToken && isAllowed),
+  });
   const dashboardQuery = useQuery({
     queryKey: ['admin-dashboard'],
     queryFn: () =>
@@ -529,7 +561,7 @@ export default function AdminScreen() {
           <Text style={styles.title}>Centro operativo</Text>
           <Muted>Accesos grandes para operar rapido desde el celular.</Muted>
         </View>
-        <SessionMenu />
+        <SessionMenu onSystemConfig={() => setActiveSection('system')} />
       </View>
 
       {dashboardQuery.isLoading ? (
@@ -602,6 +634,16 @@ export default function AdminScreen() {
             <AuditSection
               dashboard={dashboard}
               onBack={() => setActiveSection('dashboard')}
+            />
+          ) : null}
+          {activeSection === 'system' ? (
+            <SystemSection
+              apiUrl={apiUrl}
+              isLoading={setupStatusQuery.isLoading}
+              onBack={() => setActiveSection('dashboard')}
+              onRefresh={() => setupStatusQuery.refetch()}
+              setupStatus={setupStatusQuery.data}
+              statusError={setupStatusQuery.error}
             />
           ) : null}
           {activeSection === 'detail' ? (
@@ -772,6 +814,10 @@ function AdminIcon({ kind }: { kind: AdminIconKind }) {
     return <History color={colors.primaryDark} size={29} strokeWidth={2.4} />;
   }
 
+  if (kind === 'system') {
+    return <ServerCog color={colors.primaryDark} size={29} strokeWidth={2.4} />;
+  }
+
   return <UserPlus color={colors.primaryDark} size={29} strokeWidth={2.4} />;
 }
 
@@ -792,6 +838,229 @@ function SectionShell({
       <SectionTitle>{title}</SectionTitle>
       {children}
     </Card>
+  );
+}
+
+function SystemSection({
+  apiUrl,
+  isLoading,
+  onBack,
+  onRefresh,
+  setupStatus,
+  statusError,
+}: {
+  apiUrl: string | null;
+  isLoading: boolean;
+  onBack: () => void;
+  onRefresh: () => void;
+  setupStatus?: SetupStatus;
+  statusError: Error | null;
+}) {
+  const [host, setHost] = useState('localhost');
+  const [port, setPort] = useState('3306');
+  const [database, setDatabase] = useState('choninovet');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmation, setConfirmation] = useState('');
+  const [isSavingDatabase, setIsSavingDatabase] = useState(false);
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [databaseError, setDatabaseError] = useState<string | null>(null);
+  const canSubmitDatabase = confirmation.trim().toUpperCase() === 'CAMBIAR BASE';
+
+  async function handleConfigureDatabase() {
+    setStatusMessage(null);
+    setDatabaseError(null);
+
+    if (!canSubmitDatabase) {
+      setDatabaseError('Escribe CAMBIAR BASE para confirmar.');
+      return;
+    }
+
+    setIsSavingDatabase(true);
+
+    try {
+      await apiRequest('/setup/database', {
+        method: 'POST',
+        body: {
+          host: host.trim(),
+          port: Number(port),
+          database: database.trim(),
+          username: username.trim(),
+          password,
+        },
+      });
+
+      setPassword('');
+      setConfirmation('');
+      setStatusMessage('Base configurada. Reinicia la API para usar la nueva conexión en toda la app.');
+      onRefresh();
+    } catch (error) {
+      setDatabaseError(
+        error instanceof Error ? error.message : 'No se pudo configurar la base.',
+      );
+    } finally {
+      setIsSavingDatabase(false);
+    }
+  }
+
+  return (
+    <SectionShell title="Configuración del sistema" onBack={onBack}>
+      <View style={styles.systemStatusGrid}>
+        <SystemStatusCard
+          icon={<ServerCog color={colors.primaryDark} size={24} strokeWidth={2.4} />}
+          label="API configurada"
+          status={apiUrl ? 'Conectada' : 'Sin configurar'}
+          tone={apiUrl ? 'ok' : 'warning'}
+          value={apiUrl ?? 'No hay URL guardada'}
+        />
+        <SystemStatusCard
+          icon={<Database color={colors.primaryDark} size={24} strokeWidth={2.4} />}
+          label="MySQL"
+          status={
+            setupStatus?.database.connected
+              ? 'Conectado'
+              : setupStatus?.database.configured
+                ? 'Con error'
+                : 'Sin configurar'
+          }
+          tone={setupStatus?.database.connected ? 'ok' : 'warning'}
+          value={
+            setupStatus?.database.error ??
+            (setupStatus?.database.connected
+              ? 'La API pudo consultar la base.'
+              : 'Consulta el estado para verificar conexión.')
+          }
+        />
+      </View>
+
+      <View style={styles.inlineActions}>
+        <Pressable onPress={onRefresh} style={styles.secondaryButton}>
+          <RefreshCcw color={colors.text} size={18} strokeWidth={2.4} />
+          <Text style={styles.secondaryButtonText}>
+            {isLoading ? 'Probando...' : 'Probar conexión'}
+          </Text>
+        </Pressable>
+      </View>
+
+      {statusError ? (
+        <Text style={styles.statusError}>No se pudo consultar setup: {statusError.message}</Text>
+      ) : null}
+
+      {setupStatus ? (
+        <View style={styles.systemChecklist}>
+          <SystemCheck label="Base configurada" value={setupStatus.database.configured} />
+          <SystemCheck label="Conexión MySQL" value={setupStatus.database.connected} />
+          <SystemCheck label="Migraciones aplicadas" value={setupStatus.database.migrationsApplied} />
+          <SystemCheck label="Administrador inicial" value={setupStatus.database.hasAdmin} />
+        </View>
+      ) : null}
+
+      <View style={styles.warningCard}>
+        <SectionTitle>Cambiar base de datos</SectionTitle>
+        <Muted>
+          Acción avanzada. Cambia la conexión MySQL del servidor API. El password no se
+          muestra ni se lista en pantalla. Después de guardar, reinicia la API.
+        </Muted>
+
+        <View style={styles.form}>
+          <TextInput
+            autoCapitalize="none"
+            onChangeText={setHost}
+            placeholder="Host MySQL"
+            style={styles.input}
+            value={host}
+          />
+          <TextInput
+            keyboardType="numeric"
+            onChangeText={setPort}
+            placeholder="Puerto"
+            style={styles.input}
+            value={port}
+          />
+          <TextInput
+            autoCapitalize="none"
+            onChangeText={setDatabase}
+            placeholder="Nombre de base"
+            style={styles.input}
+            value={database}
+          />
+          <TextInput
+            autoCapitalize="none"
+            onChangeText={setUsername}
+            placeholder="Usuario MySQL"
+            style={styles.input}
+            value={username}
+          />
+          <TextInput
+            onChangeText={setPassword}
+            placeholder="Password MySQL"
+            secureTextEntry
+            style={styles.input}
+            value={password}
+          />
+          <TextInput
+            autoCapitalize="characters"
+            onChangeText={setConfirmation}
+            placeholder="Escribe CAMBIAR BASE"
+            style={styles.input}
+            value={confirmation}
+          />
+        </View>
+
+        {databaseError ? <Text style={styles.statusError}>{databaseError}</Text> : null}
+        {statusMessage ? <Text style={styles.status}>{statusMessage}</Text> : null}
+
+        <Pressable
+          disabled={isSavingDatabase}
+          onPress={handleConfigureDatabase}
+          style={[styles.dangerOutlineButton, isSavingDatabase && styles.buttonDisabled]}
+        >
+          <Text style={styles.dangerOutlineText}>
+            {isSavingDatabase ? 'Validando y migrando...' : 'Cambiar base de datos'}
+          </Text>
+        </Pressable>
+      </View>
+    </SectionShell>
+  );
+}
+
+function SystemStatusCard({
+  icon,
+  label,
+  status,
+  tone,
+  value,
+}: {
+  icon: ReactNode;
+  label: string;
+  status: string;
+  tone: 'ok' | 'warning';
+  value: string;
+}) {
+  return (
+    <View style={styles.systemStatusCard}>
+      <View style={styles.rowHeader}>
+        {icon}
+        <Text style={styles.rowTitle}>{label}</Text>
+      </View>
+      <Text style={[styles.systemStatusPill, tone === 'warning' && styles.systemStatusWarning]}>
+        {status}
+      </Text>
+      <Muted>{value}</Muted>
+    </View>
+  );
+}
+
+function SystemCheck({ label, value }: { label: string; value: boolean }) {
+  return (
+    <View style={styles.systemCheckRow}>
+      {value ? (
+        <CheckCircle color={colors.primaryDark} size={18} strokeWidth={2.4} />
+      ) : (
+        <XCircle color={colors.warning} size={18} strokeWidth={2.4} />
+      )}
+      <Text style={styles.systemCheckText}>{label}</Text>
+    </View>
   );
 }
 
@@ -2379,6 +2648,76 @@ const styles = StyleSheet.create({
   statusError: {
     color: colors.danger,
   },
+  systemStatusGrid: {
+    gap: spacing.sm,
+  },
+  systemStatusCard: {
+    backgroundColor: colors.surfaceAlt,
+    borderColor: colors.border,
+    borderRadius: 8,
+    borderWidth: 1,
+    gap: spacing.sm,
+    padding: spacing.md,
+  },
+  systemStatusPill: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#ecfdf5',
+    borderColor: '#bbf7d0',
+    borderRadius: 999,
+    borderWidth: 1,
+    color: colors.primaryDark,
+    fontSize: 12,
+    fontWeight: '900',
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+  },
+  systemStatusWarning: {
+    backgroundColor: '#fffbeb',
+    borderColor: '#fde68a',
+    color: colors.warning,
+  },
+  systemChecklist: {
+    backgroundColor: colors.surfaceAlt,
+    borderColor: colors.border,
+    borderRadius: 8,
+    borderWidth: 1,
+    gap: spacing.sm,
+    padding: spacing.md,
+  },
+  systemCheckRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  systemCheckText: {
+    color: colors.text,
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  warningCard: {
+    backgroundColor: '#fffbeb',
+    borderColor: '#fde68a',
+    borderRadius: 8,
+    borderWidth: 1,
+    gap: spacing.sm,
+    padding: spacing.md,
+  },
+  dangerOutlineButton: {
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderColor: colors.danger,
+    borderRadius: 8,
+    borderWidth: 1,
+    minHeight: 48,
+    justifyContent: 'center',
+    paddingHorizontal: spacing.md,
+  },
+  dangerOutlineText: {
+    color: colors.danger,
+    fontSize: 15,
+    fontWeight: '900',
+  },
   button: {
     alignItems: 'center',
     backgroundColor: colors.primary,
@@ -2401,6 +2740,8 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     borderRadius: 8,
     borderWidth: 1,
+    flexDirection: 'row',
+    gap: spacing.xs,
     minHeight: 48,
     justifyContent: 'center',
     paddingHorizontal: spacing.md,
