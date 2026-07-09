@@ -1,5 +1,4 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useRouter } from 'expo-router';
 import {
   Bell,
   CalendarDays,
@@ -868,7 +867,6 @@ function SystemSection({
   setupStatus?: SetupStatus;
   statusError: Error | null;
 }) {
-  const router = useRouter();
   const [host, setHost] = useState('localhost');
   const [port, setPort] = useState('3306');
   const [database, setDatabase] = useState('choninovet');
@@ -989,10 +987,6 @@ function SystemSection({
 
       {connectionMessage ? <Text style={styles.status}>{connectionMessage}</Text> : null}
       {connectionError ? <Text style={styles.statusError}>{connectionError}</Text> : null}
-
-      <Pressable onPress={() => router.replace('/')} style={styles.secondaryButton}>
-        <Text style={styles.secondaryButtonText}>Volver al inicio</Text>
-      </Pressable>
 
       {setupStatus ? (
         <View style={styles.systemChecklist}>
