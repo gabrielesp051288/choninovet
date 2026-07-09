@@ -49,6 +49,22 @@ JWT_SECRET="cambiar-por-un-secreto-largo"
 PORT=3000
 ```
 
+`JWT_SECRET` es la clave privada que usa la API para firmar sesiones. No es una contraseña de usuario y no se ingresa en la app.
+
+Para generar un valor seguro en PowerShell:
+
+```powershell
+[guid]::NewGuid().ToString("N") + [guid]::NewGuid().ToString("N")
+```
+
+Copiar el resultado en `api/.env`:
+
+```env
+JWT_SECRET="resultado_generado"
+```
+
+Si se cambia `JWT_SECRET`, las sesiones abiertas dejan de ser válidas y los usuarios deben iniciar sesión nuevamente.
+
 Aplicar migraciones:
 
 ```powershell
@@ -353,6 +369,7 @@ Recomendación mínima: guardar al menos una copia diaria y una copia antes de a
 - Guardar `DATABASE_URL` solo en el servidor donde corre la API.
 - No compartir `api/.env`.
 - Cambiar siempre `JWT_SECRET` antes de usar una instalación real.
+- Generar un `JWT_SECRET` distinto para cada instalación.
 - Usar HTTPS si se accede desde internet o VPS.
 - No exponer MySQL públicamente salvo que sea estrictamente necesario.
 - Usar un usuario MySQL exclusivo para choninovet.

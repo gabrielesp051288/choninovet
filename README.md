@@ -110,6 +110,22 @@ JWT_SECRET="cambiar-por-un-secreto-largo"
 PORT=3000
 ```
 
+`JWT_SECRET` es la clave privada que usa la API para firmar las sesiones. No es una contraseña de usuario y no se ingresa en la app. Debe vivir solo en `api/.env`.
+
+Para desarrollo local puede usarse un valor temporal, pero en una instalación real hay que generar uno largo y difícil de adivinar:
+
+```powershell
+[guid]::NewGuid().ToString("N") + [guid]::NewGuid().ToString("N")
+```
+
+Copiar el resultado en `api/.env`:
+
+```env
+JWT_SECRET="resultado_generado"
+```
+
+Si se cambia `JWT_SECRET`, las sesiones abiertas dejan de ser válidas y los usuarios deben iniciar sesión nuevamente.
+
 Instalar y preparar API:
 
 ```powershell
@@ -386,6 +402,7 @@ La app igualmente permite cambiar la URL de API desde la pantalla inicial o desd
 - La app móvil/web solo guarda la URL de API, no credenciales de base de datos.
 - Después de crear el primer administrador, los endpoints de setup que modifican configuración requieren rol `ADMIN`.
 - Los cambios críticos de base desde el panel `Sistema` requieren confirmación explícita.
+- `JWT_SECRET` debe ser largo, privado y distinto para cada instalación real.
 - `api/.env` no debe subirse al repositorio ni compartirse públicamente.
 
 Backup mínimo:
