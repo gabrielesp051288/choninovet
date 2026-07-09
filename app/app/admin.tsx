@@ -638,6 +638,7 @@ export default function AdminScreen() {
           ) : null}
           {activeSection === 'system' ? (
             <SystemSection
+              accessToken={accessToken}
               apiUrl={apiUrl}
               isLoading={setupStatusQuery.isLoading}
               onBack={() => setActiveSection('dashboard')}
@@ -842,6 +843,7 @@ function SectionShell({
 }
 
 function SystemSection({
+  accessToken,
   apiUrl,
   isLoading,
   onBack,
@@ -849,6 +851,7 @@ function SystemSection({
   setupStatus,
   statusError,
 }: {
+  accessToken: string | null;
   apiUrl: string | null;
   isLoading: boolean;
   onBack: () => void;
@@ -881,6 +884,7 @@ function SystemSection({
     try {
       await apiRequest('/setup/database', {
         method: 'POST',
+        token: accessToken,
         body: {
           host: host.trim(),
           port: Number(port),

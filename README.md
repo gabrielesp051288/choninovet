@@ -302,6 +302,14 @@ El APK debe apuntar a una API accesible por red local o internet.
 - No exponer MySQL públicamente si no es necesario.
 - Hacer backups periódicos de MySQL.
 
+## Seguridad self-hosted
+
+- Las credenciales MySQL se guardan solo en el servidor API.
+- La app móvil/web solo guarda la URL de API, no credenciales de base de datos.
+- Después de crear el primer administrador, los endpoints de setup que modifican configuración requieren rol `ADMIN`.
+- Los cambios críticos de base desde el panel `Sistema` requieren confirmación explícita.
+- `api/.env` no debe subirse al repositorio ni compartirse públicamente.
+
 Backup mínimo:
 
 ```powershell

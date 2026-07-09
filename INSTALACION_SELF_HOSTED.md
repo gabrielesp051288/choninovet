@@ -171,6 +171,8 @@ Body:
 
 Por seguridad, este endpoint solo crea el administrador si todavía no existe ninguna cuenta administradora.
 
+Después de existir un administrador, los endpoints de escritura de setup requieren token de una cuenta con rol `ADMIN`. Esto evita que alguien cambie la base de datos desde fuera del panel administrativo.
+
 Si se usa desde celulares en la misma red, reemplazar `localhost` por la IP de la PC/servidor:
 
 ```text
@@ -350,6 +352,19 @@ mysql -u usuario -p choninovet < choninovet_backup.sql
 ```
 
 Recomendación mínima: guardar al menos una copia diaria y una copia antes de aplicar migraciones o cambiar de base.
+
+## Seguridad mínima self-hosted
+
+- No guardar credenciales MySQL en la app móvil/web.
+- Guardar `DATABASE_URL` solo en el servidor donde corre la API.
+- No compartir `api/.env`.
+- Cambiar siempre `JWT_SECRET` antes de usar una instalación real.
+- Usar HTTPS si se accede desde internet o VPS.
+- No exponer MySQL públicamente salvo que sea estrictamente necesario.
+- Usar un usuario MySQL exclusivo para choninovet.
+- Revisar que el panel `Sistema` solo sea accesible con cuenta administradora.
+- Para cambiar la base desde el panel `Sistema`, la app exige confirmación escribiendo `CAMBIAR BASE`.
+- Los endpoints de setup no devuelven passwords ni URLs MySQL completas con secreto.
 
 ## Notas importantes
 

@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   InternalServerErrorException,
 } from '@nestjs/common';
@@ -62,6 +63,40 @@ export class SetupService {
       },
       restartRequired: true,
     };
+  }
+
+  async assertSetupWriteAllowed(user?: { role?: string }) {
+    const hasAdmin = await this.hasAdmin();
+
+    if (!hasAdmin) {
+      return;
+    }
+
+    if (user?.role !== UserRole.ADMIN) {
+      throw new ForbiddenException('Se requiere rol administrador');
+    }
+  }
+
+  async hasAdmin() {
+    const databaseUrl = process.env.DATABASE_URL;
+
+    if (!databaseUrl) {
+      return false;
+    }
+
+    const prisma = this.createClient(databaseUrl);
+
+    try {
+      const adminCount = await prisma.user.count({
+        where: { role: UserRole.ADMIN },
+      });
+
+      return adminCount > 0;
+    } catch {
+      return false;
+    } finally {
+      await prisma.$disconnect();
+    }
   }
 
   async createInitialAdmin(dto: CreateInitialAdminDto) {
@@ -234,8 +269,14 @@ function buildMysqlUrl(dto: ConfigureDatabaseDto) {
 
 function getErrorMessage(error: unknown) {
   if (error instanceof Error) {
-    return error.message;
+    return redactSecret(error.message);
   }
 
   return 'Error desconocido';
+}
+
+function redactSecret(message: string) {
+  return message
+    .replace(/mysql:\/\/([^:\s]+):([^@\s]+)@/gi, 'mysql://$1:***@')
+    .replace(/password=([^&\s]+)/gi, 'password=***');
 }
