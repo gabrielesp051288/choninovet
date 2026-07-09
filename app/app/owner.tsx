@@ -263,9 +263,12 @@ function findNextAppointment<T extends { scheduledAt: string }>(appointments: T[
 const styles = StyleSheet.create({
   headerRow: {
     alignItems: 'flex-start',
+    elevation: 20,
     flexDirection: 'row',
     gap: spacing.sm,
     justifyContent: 'space-between',
+    position: 'relative',
+    zIndex: 1000,
   },
   headerText: {
     flex: 1,

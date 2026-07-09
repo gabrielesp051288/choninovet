@@ -194,8 +194,9 @@ const styles = StyleSheet.create({
   },
   menuContainer: {
     alignItems: 'flex-end',
+    elevation: 20,
     position: 'relative',
-    zIndex: 10,
+    zIndex: 10000,
   },
   menuButton: {
     alignItems: 'center',
@@ -213,11 +214,17 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     borderRadius: 8,
     borderWidth: 1,
+    elevation: 20,
     minWidth: 168,
     padding: spacing.xs,
     position: 'absolute',
     right: 0,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
     top: 54,
+    zIndex: 10001,
   },
   menuItem: {
     alignItems: 'center',

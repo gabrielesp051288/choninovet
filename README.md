@@ -292,6 +292,85 @@ eas build -p android --profile preview
 
 El APK debe apuntar a una API accesible por red local o internet.
 
+## Despliegue Vercel + VPS
+
+El despliegue recomendado para internet es separar responsabilidades:
+
+- **Vercel**: app web Expo exportada como sitio estático.
+- **VPS**: API NestJS, Prisma y MySQL del negocio.
+
+La app web en Vercel no debe conectarse directo a MySQL. Siempre debe consumir la API publicada en el VPS.
+
+### 1. Preparar API en VPS
+
+En el VPS:
+
+```powershell
+git clone https://github.com/gabrielesp051288/choninovet.git
+cd choninovet/api
+npm install
+```
+
+Crear `api/.env`:
+
+```env
+DATABASE_URL="mysql://usuario:password@localhost:3306/choninovet"
+JWT_SECRET="cambiar-por-un-secreto-largo"
+PORT=3000
+```
+
+Aplicar base y compilar:
+
+```powershell
+npx prisma migrate deploy
+npx prisma generate
+npm run build
+npm run start:prod
+```
+
+Para producción real, conviene dejar la API corriendo con un gestor de procesos como `pm2` o el sistema de servicios del VPS.
+
+La API debe quedar accesible por HTTPS, por ejemplo:
+
+```text
+https://api.midominio.com/api/health
+```
+
+### 2. Configurar Vercel para la app web
+
+En Vercel, crear un proyecto apuntando al repositorio y configurar:
+
+```text
+Root Directory: app
+Build Command: npx expo export --platform web
+Output Directory: dist
+```
+
+Variable de entorno recomendada:
+
+```env
+EXPO_PUBLIC_API_URL="https://api.midominio.com/api"
+```
+
+La app igualmente permite cambiar la URL de API desde la pantalla inicial o desde el menú `Servidor`.
+
+### 3. Primer uso después del despliegue
+
+1. Abrir la web publicada en Vercel.
+2. Configurar la URL de API si la app la solicita.
+3. Si no existe administrador, crear el administrador inicial desde la pantalla que aparece.
+4. Ingresar por `Administrador`.
+5. Revisar `Sistema` para confirmar API, MySQL, migraciones y admin inicial.
+
+### 4. Notas para VPS
+
+- Usar HTTPS.
+- No exponer MySQL públicamente salvo necesidad real.
+- Cambiar siempre `JWT_SECRET`.
+- Configurar backups periódicos de MySQL.
+- Abrir solo los puertos necesarios.
+- Verificar que `https://api.midominio.com/api/health` responda antes de probar Vercel.
+
 ## Recomendaciones para red local o VPS
 
 - Fijar una IP local para la PC/servidor si se usa dentro del negocio.

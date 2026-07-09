@@ -1,4 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useRouter } from 'expo-router';
 import {
   Bell,
   CalendarDays,
@@ -642,7 +643,15 @@ export default function AdminScreen() {
               apiUrl={apiUrl}
               isLoading={setupStatusQuery.isLoading}
               onBack={() => setActiveSection('dashboard')}
-              onRefresh={() => setupStatusQuery.refetch()}
+              onRefresh={async () => {
+                const result = await setupStatusQuery.refetch();
+
+                if (result.error) {
+                  throw result.error;
+                }
+
+                return result.data;
+              }}
               setupStatus={setupStatusQuery.data}
               statusError={setupStatusQuery.error}
             />
@@ -855,10 +864,11 @@ function SystemSection({
   apiUrl: string | null;
   isLoading: boolean;
   onBack: () => void;
-  onRefresh: () => void;
+  onRefresh: () => Promise<SetupStatus | undefined>;
   setupStatus?: SetupStatus;
   statusError: Error | null;
 }) {
+  const router = useRouter();
   const [host, setHost] = useState('localhost');
   const [port, setPort] = useState('3306');
   const [database, setDatabase] = useState('choninovet');
@@ -868,7 +878,34 @@ function SystemSection({
   const [isSavingDatabase, setIsSavingDatabase] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [databaseError, setDatabaseError] = useState<string | null>(null);
+  const [connectionMessage, setConnectionMessage] = useState<string | null>(null);
+  const [connectionError, setConnectionError] = useState<string | null>(null);
   const canSubmitDatabase = confirmation.trim().toUpperCase() === 'CAMBIAR BASE';
+
+  async function handleRefreshConnection() {
+    setConnectionMessage(null);
+    setConnectionError(null);
+
+    try {
+      const nextStatus = await onRefresh();
+
+      if (nextStatus?.database.connected && nextStatus.database.migrationsApplied) {
+        setConnectionMessage('Conexión verificada correctamente.');
+        return;
+      }
+
+      if (nextStatus?.database.error) {
+        setConnectionError(nextStatus.database.error);
+        return;
+      }
+
+      setConnectionError('La API respondió, pero la base todavía no está lista.');
+    } catch (error) {
+      setConnectionError(
+        error instanceof Error ? error.message : 'No se pudo probar la conexión.',
+      );
+    }
+  }
 
   async function handleConfigureDatabase() {
     setStatusMessage(null);
@@ -897,7 +934,7 @@ function SystemSection({
       setPassword('');
       setConfirmation('');
       setStatusMessage('Base configurada. Reinicia la API para usar la nueva conexión en toda la app.');
-      onRefresh();
+      void onRefresh();
     } catch (error) {
       setDatabaseError(
         error instanceof Error ? error.message : 'No se pudo configurar la base.',
@@ -938,7 +975,7 @@ function SystemSection({
       </View>
 
       <View style={styles.inlineActions}>
-        <Pressable onPress={onRefresh} style={styles.secondaryButton}>
+        <Pressable onPress={handleRefreshConnection} style={styles.secondaryButton}>
           <RefreshCcw color={colors.text} size={18} strokeWidth={2.4} />
           <Text style={styles.secondaryButtonText}>
             {isLoading ? 'Probando...' : 'Probar conexión'}
@@ -949,6 +986,13 @@ function SystemSection({
       {statusError ? (
         <Text style={styles.statusError}>No se pudo consultar setup: {statusError.message}</Text>
       ) : null}
+
+      {connectionMessage ? <Text style={styles.status}>{connectionMessage}</Text> : null}
+      {connectionError ? <Text style={styles.statusError}>{connectionError}</Text> : null}
+
+      <Pressable onPress={() => router.replace('/')} style={styles.secondaryButton}>
+        <Text style={styles.secondaryButtonText}>Volver al inicio</Text>
+      </Pressable>
 
       {setupStatus ? (
         <View style={styles.systemChecklist}>
@@ -2245,9 +2289,12 @@ const styles = StyleSheet.create({
   },
   headerRow: {
     alignItems: 'flex-start',
+    elevation: 20,
     flexDirection: 'row',
     gap: spacing.sm,
     justifyContent: 'space-between',
+    position: 'relative',
+    zIndex: 1000,
   },
   kicker: {
     color: colors.primary,
