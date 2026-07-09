@@ -1,5 +1,5 @@
 import { useRouter } from 'expo-router';
-import { LogOut, Menu } from 'lucide-react-native';
+import { LogOut, Menu, ServerCog } from 'lucide-react-native';
 import { PropsWithChildren, useState } from 'react';
 import {
   Pressable,
@@ -79,6 +79,11 @@ export function SessionMenu() {
     router.replace('/');
   }
 
+  function handleServerConfig() {
+    setIsOpen(false);
+    router.push('/server-config');
+  }
+
   return (
     <View style={styles.menuContainer}>
       <Pressable
@@ -91,6 +96,10 @@ export function SessionMenu() {
 
       {isOpen ? (
         <View style={styles.menuPanel}>
+          <Pressable onPress={handleServerConfig} style={styles.menuItem}>
+            <ServerCog color={colors.text} size={18} strokeWidth={2.4} />
+            <Text style={styles.menuText}>Servidor</Text>
+          </Pressable>
           <Pressable onPress={handleLogout} style={styles.menuItem}>
             <LogOut color={colors.danger} size={18} strokeWidth={2.4} />
             <Text style={styles.logoutText}>Cerrar sesion</Text>
@@ -189,7 +198,7 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     borderRadius: 8,
     borderWidth: 1,
-    minWidth: 156,
+    minWidth: 168,
     padding: spacing.xs,
     position: 'absolute',
     right: 0,
@@ -203,6 +212,11 @@ const styles = StyleSheet.create({
     minHeight: 48,
     justifyContent: 'center',
     paddingHorizontal: spacing.sm,
+  },
+  menuText: {
+    color: colors.text,
+    fontSize: 14,
+    fontWeight: '800',
   },
   logoutText: {
     color: colors.danger,

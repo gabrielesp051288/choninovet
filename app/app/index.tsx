@@ -3,6 +3,8 @@ import { PawPrint, ShieldCheck, Stethoscope } from 'lucide-react-native';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Screen } from './components';
 import { APP_NAME, APP_SUBTITLE } from './lib/branding';
+import { ServerConfigView } from './server-config-view';
+import { useApiConfigStore } from './stores/api-config-store';
 import { colors, spacing } from './theme';
 
 type AccessCard = {
@@ -39,6 +41,22 @@ const accessCards: AccessCard[] = [
 
 export default function HomeScreen() {
   const router = useRouter();
+  const apiUrl = useApiConfigStore((state) => state.apiUrl);
+  const isHydrated = useApiConfigStore((state) => state.isHydrated);
+
+  if (!isHydrated) {
+    return (
+      <Screen>
+        <View style={styles.loadingBox}>
+          <Text style={styles.loadingText}>Cargando configuración...</Text>
+        </View>
+      </Screen>
+    );
+  }
+
+  if (!apiUrl) {
+    return <ServerConfigView />;
+  }
 
   return (
     <Screen>
@@ -150,5 +168,15 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '900',
     marginTop: 4,
+  },
+  loadingBox: {
+    alignItems: 'center',
+    minHeight: 240,
+    justifyContent: 'center',
+  },
+  loadingText: {
+    color: colors.muted,
+    fontSize: 15,
+    fontWeight: '700',
   },
 });

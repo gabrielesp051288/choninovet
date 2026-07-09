@@ -250,3 +250,15 @@ model AuditLog {
   @@index([createdAt])
   @@map("audit_logs")
 }
+
+model ScheduleSetting {
+  scope           String   @id @db.VarChar(16)
+  isEnabled       Boolean  @default(true) @map("is_enabled")
+  startTime       String   @map("start_time") @db.VarChar(5)
+  endTime         String   @map("end_time") @db.VarChar(5)
+  intervalMinutes Int      @default(30) @map("interval_minutes")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @default(now()) @updatedAt @map("updated_at")
+
+  @@map("schedule_settings")
+}

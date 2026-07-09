@@ -4,6 +4,8 @@ import { useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { ActionLink, Card, Screen } from './components';
 import { routeForRole } from './lib/auth-routing';
+import { ServerConfigView } from './server-config-view';
+import { useApiConfigStore } from './stores/api-config-store';
 import { useAuthStore, type UserRole } from './stores/auth-store';
 import { colors, spacing } from './theme';
 
@@ -37,6 +39,8 @@ const roles: Array<{
 
 export default function LoginScreen() {
   const router = useRouter();
+  const apiUrl = useApiConfigStore((state) => state.apiUrl);
+  const isApiConfigHydrated = useApiConfigStore((state) => state.isHydrated);
   const params = useLocalSearchParams<{ role?: UserRole }>();
   const requestedRole =
     params.role && roles.some((role) => role.value === params.role)
@@ -53,6 +57,10 @@ export default function LoginScreen() {
     roles.find((role) => role.value === selectedRole) ?? roles[0];
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+
+  if (isApiConfigHydrated && !apiUrl) {
+    return <ServerConfigView />;
+  }
 
   async function handleLogin() {
     try {

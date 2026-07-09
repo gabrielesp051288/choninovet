@@ -2,13 +2,27 @@
 
 **Gestión Veterinaria de Código Abierto**
 
-choninovet es una aplicación web y móvil para la gestión veterinaria, pensada para separar claramente la experiencia de propietarios, veterinarios/as y administración. El proyecto apunta a cubrir el flujo operativo principal: usuarios, mascotas, turnos, agenda, historial médico, recordatorios, mensajería, alertas y auditoría administrativa.
+choninovet es una aplicación web y móvil self-hosted para gestión veterinaria. Está pensada para que cada clínica, profesional o negocio pueda instalar su propia API y usar su propia base de datos MySQL, sin depender de una base central ni de Docker.
+
+El sistema separa claramente la experiencia de propietarios, veterinarios/as y administración, y cubre el flujo operativo principal: usuarios, mascotas, turnos, agenda, historial médico, recordatorios, mensajería, alertas y auditoría administrativa.
 
 ## ¿Por qué Chonino?
 
 El nombre choninovet es un homenaje a Chonino, el ovejero alemán de la Policía Federal Argentina que dio su vida en 1983 salvando a su guía. Su historia de lealtad y servicio inspiró el Día Nacional del Perro en Argentina, conmemorado cada 2 de junio.
 
 Esa referencia conecta directamente con el propósito del software: ayudar a cuidar mejor a los animales, ordenar la atención veterinaria y facilitar el trabajo de las personas que acompañan su salud. choninovet busca ser una herramienta abierta, práctica y extensible para clínicas, profesionales y comunidades que necesitan una base tecnológica accesible para gestionar el bienestar animal.
+
+## Modelo self-hosted
+
+choninovet no funciona como una app centralizada con una única base de datos. Cada instalación puede tener su propio backend y su propia base MySQL.
+
+```text
+App móvil / navegador web
+  -> API choninovet del negocio
+      -> MySQL del negocio
+```
+
+La app móvil/web no se conecta directamente a MySQL. Las credenciales de base de datos viven solo en el servidor donde corre la API.
 
 ## Estado del proyecto
 
@@ -23,6 +37,7 @@ MVP funcional en desarrollo activo.
 - Solicitud de turnos por propietarios con calendario y horarios disponibles.
 - Agenda de turnos para veterinarios/as y administración.
 - Aprobación, rechazo y seguimiento de solicitudes de turno.
+- Configuración de horarios de atención por días de semana, sábado y domingo.
 - Historial médico por mascota.
 - Recordatorios clínicos.
 - Mensajería entre propietarios y veterinarios/as.
@@ -47,7 +62,7 @@ El panel veterinario/a funciona como dashboard de accesos mobile-first. Desde ah
 
 La administración permite crear veterinarios/as, aprobar o rechazar cuentas de propietarios, revisar usuarios, pacientes, agenda, horarios de atención, métricas y auditoría.
 
-## Stack principal
+## Stack
 
 - Frontend mobile/web: Expo SDK 54, React Native, Expo Router y React Native Web.
 - Backend: NestJS.
@@ -64,30 +79,42 @@ api/   API NestJS con Prisma y MySQL.
 
 ## Requisitos
 
-- Node.js 22 o compatible con el stack instalado.
+- Node.js 22 o compatible.
 - npm.
-- MySQL local o remoto.
-- Expo CLI vía `npx expo`.
+- MySQL 8 o compatible.
+- PowerShell, CMD o shell equivalente.
+- Red local o VPS si se usará desde varios dispositivos.
+- Expo mediante `npx expo`.
 
-## Configuración inicial
+No se requiere Docker.
 
-Crear la base de datos MySQL:
+## Instalación rápida self-hosted
+
+Para una guía paso a paso más detallada, ver:
+
+[Instalación self-hosted sin Docker](./INSTALACION_SELF_HOSTED.md)
+
+### 1. Crear base de datos
 
 ```sql
-CREATE DATABASE choninovet;
+CREATE DATABASE choninovet CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 ```
 
-Configurar variables de entorno del backend en `api/.env`:
+### 2. Configurar backend
+
+Crear `api/.env`:
 
 ```env
-DATABASE_URL="mysql://root:root@localhost:3306/choninovet"
-JWT_SECRET="dev-secret-change-later"
+DATABASE_URL="mysql://usuario:password@localhost:3306/choninovet"
+JWT_SECRET="cambiar-por-un-secreto-largo"
 PORT=3000
+ADMIN_EMAIL="admin@choninovet.local"
+ADMIN_PASSWORD="Cambiar1234"
 ```
 
-## Instalación
+Instalar y preparar API:
 
-```bash
+```powershell
 cd api
 npm install
 npx prisma migrate deploy
@@ -95,34 +122,153 @@ npx prisma generate
 npm run seed
 ```
 
-```bash
-cd ../app
-npm install
-```
+Iniciar API en desarrollo:
 
-## Ejecución en desarrollo
-
-Backend:
-
-```bash
-cd api
+```powershell
 npm run start:dev
 ```
 
-Frontend:
+Iniciar API en modo producción:
 
-```bash
+```powershell
+npm run build
+npm run start:prod
+```
+
+### 3. Verificar API
+
+Abrir:
+
+```text
+http://localhost:3000/api/health
+```
+
+Respuesta esperada:
+
+```json
+{
+  "status": "ok",
+  "service": "choninovet-api"
+}
+```
+
+Si se usa desde celulares en la misma red, reemplazar `localhost` por la IP de la PC o servidor:
+
+```text
+http://192.168.1.50:3000/api/health
+```
+
+### 4. Configurar app
+
+Al abrir la app por primera vez, choninovet solicita la URL de la API del negocio y valida la conexión contra `/api/health`.
+
+Ejemplo local:
+
+```text
+http://localhost:3000/api
+```
+
+Ejemplo en red local:
+
+```text
+http://192.168.1.50:3000/api
+```
+
+También se puede crear `app/.env` para precargar una URL sugerida en desarrollo:
+
+```env
+EXPO_PUBLIC_API_URL="http://localhost:3000/api"
+```
+
+Para usar desde otro celular en red local:
+
+```env
+EXPO_PUBLIC_API_URL="http://192.168.1.50:3000/api"
+```
+
+Instalar y ejecutar app web:
+
+```powershell
 cd app
+npm install
 npm run web
 ```
 
-Para Android o iOS con Expo:
+Ejecutar en Android o iOS con Expo:
 
-```bash
+```powershell
 npm run android
 npm run ios
 ```
 
 ## Cuenta administrativa inicial
 
-La semilla de desarrollo crea una cuenta administrativa inicial configurable desde variables de entorno. Si no se definen variables, se usan los valores por defecto del seed.
+La semilla del backend crea una cuenta administrativa inicial usando estas variables:
+
+```env
+ADMIN_EMAIL="admin@choninovet.local"
+ADMIN_PASSWORD="Cambiar1234"
+```
+
+Si no se definen, el seed usa valores por defecto. En una instalación real se recomienda cambiar siempre la contraseña inicial después del primer ingreso.
+
+## Migraciones y base limpia
+
+Las migraciones Prisma incluyen una migración base completa para crear una base nueva desde cero:
+
+```powershell
+cd api
+npx prisma migrate deploy
+```
+
+Para desarrollo local, si se necesita reiniciar la base y borrar datos:
+
+```powershell
+cd api
+npx prisma migrate reset
+```
+
+Ese comando elimina datos. No debe usarse sobre una base real sin backup.
+
+## Distribución sin Play Store
+
+choninovet puede usarse como app web en red local o desde un VPS. Para Android también se puede generar un APK instalable con Expo/EAS.
+
+Instalar EAS:
+
+```powershell
+npm install -g eas-cli
+```
+
+Desde `app`:
+
+```powershell
+eas build -p android --profile preview
+```
+
+El APK debe apuntar a una API accesible por red local o internet.
+
+## Recomendaciones para red local o VPS
+
+- Fijar una IP local para la PC/servidor si se usa dentro del negocio.
+- Permitir el puerto `3000` en firewall si la API corre en ese puerto.
+- Usar HTTPS si la API queda expuesta por internet.
+- Cambiar siempre `JWT_SECRET`.
+- No exponer MySQL públicamente si no es necesario.
+- Hacer backups periódicos de MySQL.
+
+Backup mínimo:
+
+```powershell
+mysqldump -u usuario -p choninovet > choninovet_backup.sql
+```
+
+Restaurar backup:
+
+```powershell
+mysql -u usuario -p choninovet < choninovet_backup.sql
+```
+
+## Licencia
+
+MIT.

@@ -1,6 +1,4 @@
-const DEFAULT_API_URL = 'http://localhost:3000/api';
-
-export const API_URL = process.env.EXPO_PUBLIC_API_URL ?? DEFAULT_API_URL;
+import { useApiConfigStore } from '../stores/api-config-store';
 
 let unauthorizedHandler: (() => void) | null = null;
 
@@ -25,7 +23,8 @@ export async function apiRequest<T>(
   path: string,
   { method = 'GET', token, body }: RequestOptions = {},
 ): Promise<T> {
-  const response = await fetch(`${API_URL}${path}`, {
+  const apiUrl = useApiConfigStore.getState().getApiUrl();
+  const response = await fetch(`${apiUrl}${path}`, {
     method,
     headers: {
       Accept: 'application/json',

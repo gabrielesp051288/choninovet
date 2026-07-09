@@ -2,15 +2,18 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
+import { useApiConfigStore } from './stores/api-config-store';
 import { useAuthStore } from './stores/auth-store';
 
 export default function RootLayout() {
   const [queryClient] = useState(() => new QueryClient());
+  const hydrateApiConfig = useApiConfigStore((state) => state.hydrateApiConfig);
   const hydrateSession = useAuthStore((state) => state.hydrateSession);
 
   useEffect(() => {
+    void hydrateApiConfig();
     void hydrateSession();
-  }, [hydrateSession]);
+  }, [hydrateApiConfig, hydrateSession]);
 
   return (
     <QueryClientProvider client={queryClient}>
@@ -25,6 +28,7 @@ export default function RootLayout() {
         <Stack.Screen name="index" options={{ headerShown: false }} />
         <Stack.Screen name="owner-app" options={{ headerShown: false }} />
         <Stack.Screen name="vet-app" options={{ headerShown: false }} />
+        <Stack.Screen name="server-config" options={{ title: 'Servidor' }} />
         <Stack.Screen name="login" options={{ title: 'Acceso' }} />
         <Stack.Screen name="register" options={{ title: 'Crear cuenta' }} />
         <Stack.Screen name="forgot-password" options={{ title: 'Recuperar contrasena' }} />

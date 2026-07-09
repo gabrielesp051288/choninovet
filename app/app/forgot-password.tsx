@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { ActionLink, Card, Muted, Screen, SectionTitle } from './components';
 import { apiRequest } from './lib/api';
+import { ServerConfigView } from './server-config-view';
+import { useApiConfigStore } from './stores/api-config-store';
 import { colors, spacing } from './theme';
 
 type RequestResetResponse = {
@@ -10,6 +12,8 @@ type RequestResetResponse = {
 };
 
 export default function ForgotPasswordScreen() {
+  const apiUrl = useApiConfigStore((state) => state.apiUrl);
+  const isApiConfigHydrated = useApiConfigStore((state) => state.isHydrated);
   const [email, setEmail] = useState('');
   const [token, setToken] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -17,6 +21,10 @@ export default function ForgotPasswordScreen() {
   const [isConfirming, setIsConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+
+  if (isApiConfigHydrated && !apiUrl) {
+    return <ServerConfigView />;
+  }
 
   async function handleRequestReset() {
     setError(null);

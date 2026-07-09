@@ -1,10 +1,14 @@
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { ActionLink, Card, Screen } from './components';
+import { ServerConfigView } from './server-config-view';
+import { useApiConfigStore } from './stores/api-config-store';
 import { useAuthStore } from './stores/auth-store';
 import { colors, spacing } from './theme';
 
 export default function RegisterScreen() {
+  const apiUrl = useApiConfigStore((state) => state.apiUrl);
+  const isApiConfigHydrated = useApiConfigStore((state) => state.isHydrated);
   const registerOwner = useAuthStore((state) => state.registerOwner);
   const isLoading = useAuthStore((state) => state.isLoading);
   const error = useAuthStore((state) => state.error);
@@ -14,6 +18,10 @@ export default function RegisterScreen() {
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [phone, setPhone] = useState('');
+
+  if (isApiConfigHydrated && !apiUrl) {
+    return <ServerConfigView />;
+  }
 
   async function handleRegister() {
     setSuccess(null);
