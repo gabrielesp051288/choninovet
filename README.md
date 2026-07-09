@@ -122,6 +122,14 @@ npx prisma generate
 npm run seed
 ```
 
+En Windows también se pueden usar los scripts incluidos:
+
+```powershell
+.\scripts\windows\instalar-api.ps1
+.\scripts\windows\migrar-api.ps1
+.\scripts\windows\crear-admin.ps1
+```
+
 Iniciar API en desarrollo:
 
 ```powershell
@@ -205,6 +213,13 @@ Instalar y ejecutar app web:
 cd app
 npm install
 npm run web
+```
+
+Scripts equivalentes para Windows:
+
+```powershell
+.\scripts\windows\instalar-app.ps1
+.\scripts\windows\iniciar-web.ps1
 ```
 
 Ejecutar en Android o iOS con Expo:

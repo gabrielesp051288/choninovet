@@ -77,6 +77,34 @@ npm run build
 npm run start:prod
 ```
 
+## Scripts de ayuda para Windows
+
+Desde la raíz del proyecto se pueden usar estos scripts PowerShell:
+
+```powershell
+.\scripts\windows\instalar-api.ps1
+.\scripts\windows\instalar-app.ps1
+.\scripts\windows\migrar-api.ps1
+.\scripts\windows\crear-admin.ps1
+.\scripts\windows\iniciar-api.ps1
+.\scripts\windows\iniciar-web.ps1
+```
+
+Qué hace cada uno:
+
+- `instalar-api.ps1`: instala dependencias del backend en `api`.
+- `instalar-app.ps1`: instala dependencias de la app en `app`.
+- `migrar-api.ps1`: ejecuta `prisma migrate deploy` y `prisma generate`.
+- `crear-admin.ps1`: ejecuta el seed para crear o actualizar el administrador inicial.
+- `iniciar-api.ps1`: inicia la API en modo desarrollo.
+- `iniciar-web.ps1`: inicia la app web con Expo.
+
+Si PowerShell bloquea la ejecución de scripts, ejecutar una sola vez en esa terminal:
+
+```powershell
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+```
+
 ## Verificar API
 
 Abrir:
