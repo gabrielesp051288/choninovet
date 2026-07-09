@@ -47,8 +47,6 @@ Crear `api/.env`:
 DATABASE_URL="mysql://usuario:password@localhost:3306/choninovet"
 JWT_SECRET="cambiar-por-un-secreto-largo"
 PORT=3000
-ADMIN_EMAIL="admin@choninovet.local"
-ADMIN_PASSWORD="Cambiar1234"
 ```
 
 Aplicar migraciones:
@@ -56,12 +54,6 @@ Aplicar migraciones:
 ```powershell
 npx prisma migrate deploy
 npx prisma generate
-```
-
-Crear administrador inicial:
-
-```powershell
-npm run seed
 ```
 
 Iniciar API:
@@ -85,7 +77,6 @@ Desde la raíz del proyecto se pueden usar estos scripts PowerShell:
 .\scripts\windows\instalar-api.ps1
 .\scripts\windows\instalar-app.ps1
 .\scripts\windows\migrar-api.ps1
-.\scripts\windows\crear-admin.ps1
 .\scripts\windows\iniciar-api.ps1
 .\scripts\windows\iniciar-web.ps1
 ```
@@ -95,9 +86,10 @@ Qué hace cada uno:
 - `instalar-api.ps1`: instala dependencias del backend en `api`.
 - `instalar-app.ps1`: instala dependencias de la app en `app`.
 - `migrar-api.ps1`: ejecuta `prisma migrate deploy` y `prisma generate`.
-- `crear-admin.ps1`: ejecuta el seed para crear o actualizar el administrador inicial.
 - `iniciar-api.ps1`: inicia la API en modo desarrollo.
 - `iniciar-web.ps1`: inicia la app web con Expo.
+
+El script `crear-admin.ps1` existe solo como ayuda de desarrollo. En una instalación normal, el administrador inicial se crea desde la app.
 
 Si PowerShell bloquea la ejecución de scripts, ejecutar una sola vez en esa terminal:
 
@@ -132,7 +124,7 @@ Ese endpoint indica si la API tiene base configurada, si pudo conectarse, si las
 
 ## Setup inicial por API
 
-Para instalaciones nuevas, el backend expone endpoints de setup.
+Para instalaciones nuevas, el backend expone endpoints de setup. La app usa estos endpoints para completar el primer arranque sin ejecutar seed manual.
 
 Configurar y validar base de datos:
 
@@ -154,7 +146,7 @@ Body:
 
 La API prueba la conexión MySQL, ejecuta `prisma migrate deploy`, guarda `DATABASE_URL` en `api/.env` y responde si se requiere reiniciar el backend.
 
-Crear administrador inicial:
+Crear administrador inicial desde la app:
 
 ```http
 POST /api/setup/admin
@@ -169,7 +161,7 @@ Body:
 }
 ```
 
-Por seguridad, este endpoint solo crea el administrador si todavía no existe ninguna cuenta administradora.
+Por seguridad, este endpoint solo crea el administrador si todavía no existe ninguna cuenta administradora. La pantalla `Crear administrador inicial` aparece automáticamente después de configurar la URL de API.
 
 Después de existir un administrador, los endpoints de escritura de setup requieren token de una cuenta con rol `ADMIN`. Esto evita que alguien cambie la base de datos desde fuera del panel administrativo.
 
@@ -206,6 +198,8 @@ http://192.168.1.50:3000/api
 ```
 
 La URL también se puede cambiar luego desde el menú hamburguesa, opción `Servidor`.
+
+Si la API no tiene administrador inicial, la app muestra automáticamente la pantalla `Crear administrador inicial`. No hace falta cargar `ADMIN_EMAIL`, `ADMIN_PASSWORD` ni ejecutar `npm run seed`.
 
 Desde una cuenta administradora, el panel `Sistema` permite ver el estado de la API, la conexión MySQL, migraciones aplicadas y administrador inicial. También permite probar conexión y cambiar la base de datos como acción avanzada con confirmación.
 

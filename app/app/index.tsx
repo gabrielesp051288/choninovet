@@ -1,7 +1,10 @@
+import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import { PawPrint, ShieldCheck, Stethoscope } from 'lucide-react-native';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { Screen } from './components';
+import { Card, Screen, SectionTitle, Muted } from './components';
+import { InitialAdminView } from './initial-admin-view';
+import { apiRequest } from './lib/api';
 import { APP_NAME, APP_SUBTITLE } from './lib/branding';
 import { ServerConfigView } from './server-config-view';
 import { useApiConfigStore } from './stores/api-config-store';
@@ -13,6 +16,13 @@ type AccessCard = {
   action: string;
   href: '/login?role=OWNER' | '/login?role=VET' | '/login?role=ADMIN';
   icon: 'owner' | 'vet' | 'admin';
+};
+
+type SetupStatus = {
+  status: 'ready' | 'setup_required';
+  needsDatabase: boolean;
+  needsMigrations: boolean;
+  needsAdmin: boolean;
 };
 
 const accessCards: AccessCard[] = [
@@ -43,6 +53,12 @@ export default function HomeScreen() {
   const router = useRouter();
   const apiUrl = useApiConfigStore((state) => state.apiUrl);
   const isHydrated = useApiConfigStore((state) => state.isHydrated);
+  const setupStatusQuery = useQuery({
+    queryKey: ['setup-status', apiUrl],
+    queryFn: () => apiRequest<SetupStatus>('/setup/status'),
+    enabled: Boolean(isHydrated && apiUrl),
+    retry: 1,
+  });
 
   if (!isHydrated) {
     return (
@@ -56,6 +72,57 @@ export default function HomeScreen() {
 
   if (!apiUrl) {
     return <ServerConfigView />;
+  }
+
+  if (setupStatusQuery.isLoading) {
+    return (
+      <Screen>
+        <View style={styles.loadingBox}>
+          <Text style={styles.loadingText}>Verificando instalación...</Text>
+        </View>
+      </Screen>
+    );
+  }
+
+  if (setupStatusQuery.error) {
+    return (
+      <Screen>
+        <Card>
+          <SectionTitle>No se pudo verificar la instalación</SectionTitle>
+          <Muted>Revisa que la API configurada esté corriendo y vuelve a intentar.</Muted>
+          <Pressable
+            onPress={() => setupStatusQuery.refetch()}
+            style={styles.retryButton}
+          >
+            <Text style={styles.retryButtonText}>Reintentar</Text>
+          </Pressable>
+        </Card>
+      </Screen>
+    );
+  }
+
+  if (setupStatusQuery.data?.needsDatabase || setupStatusQuery.data?.needsMigrations) {
+    return (
+      <Screen>
+        <Card>
+          <SectionTitle>Instalación incompleta</SectionTitle>
+          <Muted>
+            La API responde, pero la base de datos todavía no está lista. Configura la base
+            desde el backend o desde el endpoint de setup y vuelve a intentar.
+          </Muted>
+          <Pressable
+            onPress={() => setupStatusQuery.refetch()}
+            style={styles.retryButton}
+          >
+            <Text style={styles.retryButtonText}>Revisar nuevamente</Text>
+          </Pressable>
+        </Card>
+      </Screen>
+    );
+  }
+
+  if (setupStatusQuery.data?.needsAdmin) {
+    return <InitialAdminView onCreated={() => setupStatusQuery.refetch()} />;
   }
 
   return (
@@ -178,5 +245,19 @@ const styles = StyleSheet.create({
     color: colors.muted,
     fontSize: 15,
     fontWeight: '700',
+  },
+  retryButton: {
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    backgroundColor: colors.primary,
+    borderRadius: 8,
+    justifyContent: 'center',
+    minHeight: 46,
+    paddingHorizontal: spacing.md,
+  },
+  retryButtonText: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: '900',
   },
 });

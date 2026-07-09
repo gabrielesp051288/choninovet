@@ -108,8 +108,6 @@ Crear `api/.env`:
 DATABASE_URL="mysql://usuario:password@localhost:3306/choninovet"
 JWT_SECRET="cambiar-por-un-secreto-largo"
 PORT=3000
-ADMIN_EMAIL="admin@choninovet.local"
-ADMIN_PASSWORD="Cambiar1234"
 ```
 
 Instalar y preparar API:
@@ -119,7 +117,6 @@ cd api
 npm install
 npx prisma migrate deploy
 npx prisma generate
-npm run seed
 ```
 
 En Windows también se pueden usar los scripts incluidos:
@@ -127,7 +124,6 @@ En Windows también se pueden usar los scripts incluidos:
 ```powershell
 .\scripts\windows\instalar-api.ps1
 .\scripts\windows\migrar-api.ps1
-.\scripts\windows\crear-admin.ps1
 ```
 
 Iniciar API en desarrollo:
@@ -207,6 +203,8 @@ Para usar desde otro celular en red local:
 EXPO_PUBLIC_API_URL="http://192.168.1.50:3000/api"
 ```
 
+Si la API no tiene administrador inicial, la app muestra automáticamente la pantalla para crearlo. No hace falta ejecutar seed ni cargar usuario administrador en `.env`.
+
 Instalar y ejecutar app web:
 
 ```powershell
@@ -231,14 +229,15 @@ npm run ios
 
 ## Cuenta administrativa inicial
 
-La semilla del backend crea una cuenta administrativa inicial usando estas variables:
+En una instalación nueva, la primera cuenta administradora se crea desde la app:
 
-```env
-ADMIN_EMAIL="admin@choninovet.local"
-ADMIN_PASSWORD="Cambiar1234"
-```
+1. Iniciar la API.
+2. Abrir la app.
+3. Configurar la URL de API.
+4. Completar la pantalla `Crear administrador inicial`.
+5. Ingresar con esa cuenta desde el acceso `Administrador`.
 
-Si no se definen, el seed usa valores por defecto. En una instalación real se recomienda cambiar siempre la contraseña inicial después del primer ingreso.
+`npm run seed` queda solo como herramienta opcional de desarrollo.
 
 ## Migraciones y base limpia
 
