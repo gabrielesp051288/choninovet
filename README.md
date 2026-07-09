@@ -92,7 +92,22 @@ No se requiere Docker.
 
 Para una guía paso a paso más detallada, ver:
 
-[Instalación self-hosted sin Docker](./INSTALACION_SELF_HOSTED.md)
+[Instalación self-hosted en VPS Ubuntu](./INSTALACION_SELF_HOSTED.md)
+
+Para producción con clientes accediendo desde internet, el despliegue recomendado es:
+
+```text
+VPS Ubuntu
+  -> API choninovet
+  -> MySQL
+  -> HTTPS con dominio propio
+
+Vercel opcional
+  -> app web pública
+  -> consume https://api.tudominio.com/api
+```
+
+La red local sirve para pruebas o uso interno. Para clientes externos, usar VPS evita depender de una PC del local, router, IP dinámica o cortes de conexión.
 
 ### 1. Crear base de datos
 
@@ -273,13 +288,50 @@ npx prisma migrate reset
 
 Ese comando elimina datos. No debe usarse sobre una base real sin backup.
 
+## Despliegue recomendado en VPS
+
+Para que clientes puedan acceder desde internet, la opción recomendada es una VM/VPS con Ubuntu Server, IP pública y dominio propio.
+
+Arquitectura recomendada:
+
+```text
+Clientes / navegador / APK
+  -> https://api.tudominio.com/api
+      -> API choninovet en VPS Ubuntu
+          -> MySQL en el mismo VPS o servicio MySQL externo
+```
+
+Componentes sugeridos en Ubuntu Server:
+
+- Node.js y npm.
+- MySQL Server.
+- PM2 o servicio systemd para mantener la API corriendo.
+- Nginx como proxy reverso.
+- Certbot/Let's Encrypt para HTTPS.
+- UFW para firewall.
+- Backups periódicos con `mysqldump`.
+
+La URL que usarán app web y APK debe ser:
+
+```text
+https://api.tudominio.com/api
+```
+
+Checklist mínimo de producción:
+
+- `JWT_SECRET` largo y privado.
+- MySQL no expuesto públicamente salvo necesidad real.
+- Puerto público 443 para HTTPS.
+- Backups configurados.
+- `https://api.tudominio.com/api/health` respondiendo `status: ok`.
+
 ## Distribución sin Play Store
 
 choninovet puede usarse sin Play Store de tres maneras:
 
-- web app en red local;
-- web app publicada desde un VPS;
-- APK Android instalado manualmente.
+- web app publicada desde VPS o Vercel;
+- APK Android instalado manualmente;
+- web app en red local solo para pruebas o uso interno.
 
 En todos los casos, cada dispositivo debe configurar la URL de API del negocio. En celulares no se debe usar `localhost`; se debe usar la IP local del servidor o el dominio del VPS.
 
@@ -292,7 +344,7 @@ https://api.midominio.com/api
 
 Para más detalle sobre red local, VPS, firewall, APK y backups, ver:
 
-[Instalación self-hosted sin Docker](./INSTALACION_SELF_HOSTED.md)
+[Instalación self-hosted en VPS Ubuntu](./INSTALACION_SELF_HOSTED.md)
 
 Instalar EAS:
 

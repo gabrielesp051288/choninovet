@@ -1,6 +1,8 @@
-# Instalación self-hosted sin Docker
+# Instalación self-hosted en VPS Ubuntu
 
-Esta guía explica cómo instalar choninovet en una PC local, servidor de red o VPS sin Docker. Cada negocio usa su propia API y su propia base de datos MySQL.
+Esta guía explica cómo instalar choninovet en un VPS/VM con Ubuntu Server sin Docker. Cada negocio usa su propia API y su propia base de datos MySQL.
+
+La red local sigue siendo útil para pruebas o uso interno, pero para clientes accediendo desde internet se recomienda VPS con IP pública, dominio y HTTPS.
 
 ## Arquitectura
 
@@ -17,12 +19,55 @@ La app móvil/web no se conecta directamente a MySQL. Solo se conecta a la API.
 - Node.js 22 o compatible.
 - npm.
 - MySQL 8 o compatible.
-- Acceso a terminal PowerShell, CMD o shell equivalente.
-- Red local o VPS con puerto de API accesible.
+- Ubuntu Server o VM Linux equivalente.
+- Dominio o subdominio para la API.
+- Acceso SSH al servidor.
+- Puerto HTTPS público.
+
+Componentes recomendados en VPS:
+
+- Node.js y npm.
+- MySQL Server.
+- PM2 o systemd para mantener la API corriendo.
+- Nginx como proxy reverso.
+- Certbot/Let's Encrypt para HTTPS.
+- UFW para firewall.
+- `mysqldump` para backups.
+
+## Arquitectura recomendada para internet
+
+```text
+Clientes / navegador / APK
+  -> https://api.tudominio.com/api
+      -> API choninovet en VPS Ubuntu
+          -> MySQL del negocio
+```
+
+La app web puede estar en Vercel o servirse desde el mismo VPS. En ambos casos debe consumir la API pública:
+
+```text
+https://api.tudominio.com/api
+```
+
+## Instalación base en Ubuntu Server
+
+Instalar paquetes base:
+
+```bash
+sudo apt update
+sudo apt install -y git curl nginx mysql-server
+```
+
+Instalar Node.js LTS compatible con el proyecto según el método que prefieras para tu servidor. Verificar:
+
+```bash
+node -v
+npm -v
+```
 
 ## Instalación de MySQL
 
-Instalar MySQL en la PC/servidor del negocio. En Windows se puede usar una instalación directa de MySQL Community Server o paquetes locales como Laragon/XAMPP si ya se usan en el entorno.
+Instalar y preparar MySQL en el VPS.
 
 Crear una base de datos vacía:
 
@@ -32,9 +77,126 @@ CREATE DATABASE choninovet CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 Crear o elegir un usuario MySQL con permisos sobre esa base.
 
+Ejemplo orientativo:
+
+```sql
+CREATE USER 'choninovet'@'localhost' IDENTIFIED BY 'password_seguro';
+GRANT ALL PRIVILEGES ON choninovet.* TO 'choninovet'@'localhost';
+FLUSH PRIVILEGES;
+```
+
+No exponer MySQL públicamente salvo necesidad real.
+
 ## Configurar API
 
-Entrar a la carpeta del backend:
+Clonar el repositorio y entrar a la carpeta del backend:
+
+```bash
+git clone https://github.com/gabrielesp051288/choninovet.git
+cd choninovet/api
+npm install
+```
+
+Crear `api/.env`:
+
+```env
+DATABASE_URL="mysql://choninovet:password_seguro@localhost:3306/choninovet"
+JWT_SECRET="cambiar-por-un-secreto-largo"
+PORT=3000
+```
+
+`JWT_SECRET` es la clave privada que usa la API para firmar sesiones. No es una contraseña de usuario y no se ingresa en la app.
+
+Para generar un valor seguro en Ubuntu:
+
+```bash
+openssl rand -hex 32
+```
+
+Copiar el resultado en `api/.env`:
+
+```env
+JWT_SECRET="resultado_generado"
+```
+
+Aplicar migraciones:
+
+```bash
+npx prisma migrate deploy
+npx prisma generate
+```
+
+Compilar:
+
+```bash
+npm run build
+```
+
+Iniciar en producción con PM2:
+
+```bash
+sudo npm install -g pm2
+pm2 start dist/main.js --name choninovet-api
+pm2 save
+pm2 startup
+```
+
+La API debe responder localmente:
+
+```text
+http://localhost:3000/api/health
+```
+
+## Nginx y HTTPS
+
+Configurar Nginx como proxy hacia la API.
+
+Ejemplo para `api.tudominio.com`:
+
+```nginx
+server {
+  server_name api.tudominio.com;
+
+  location / {
+    proxy_pass http://127.0.0.1:3000;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+  }
+}
+```
+
+Activar HTTPS con Certbot:
+
+```bash
+sudo apt install -y certbot python3-certbot-nginx
+sudo certbot --nginx -d api.tudominio.com
+```
+
+Verificar:
+
+```text
+https://api.tudominio.com/api/health
+```
+
+## Firewall
+
+Permitir SSH, HTTP y HTTPS:
+
+```bash
+sudo ufw allow OpenSSH
+sudo ufw allow 'Nginx Full'
+sudo ufw enable
+sudo ufw status
+```
+
+No abrir MySQL públicamente si MySQL corre en el mismo VPS.
+
+## Instalación local o red interna
+
+Para pruebas en una PC local o red interna, también se puede ejecutar manualmente:
 
 ```powershell
 cd api
