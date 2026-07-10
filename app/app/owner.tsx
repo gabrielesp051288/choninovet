@@ -8,7 +8,7 @@ import {
   PlusCircle,
   UserRound,
 } from 'lucide-react-native';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import {
   Badge,
   Card,
@@ -18,6 +18,7 @@ import {
   SessionMenu,
 } from './components';
 import { useOwnerAppointments, useOwnerPets } from './hooks/use-owner-dashboard';
+import { buildApiAssetUrl } from './lib/api';
 import { useRequireRole } from './lib/auth-routing';
 import { appointmentStatusLabel, petSexLabel } from './lib/labels';
 import { useAuthStore } from './stores/auth-store';
@@ -146,6 +147,7 @@ export default function OwnerScreen() {
             onPress={() => router.push(`/pet/${pet.id}`)}
             style={styles.row}
           >
+            <PetThumb name={pet.name} photoUrl={pet.photoUrl} />
             <View style={styles.rowText}>
               <Text style={styles.rowTitle}>{pet.name}</Text>
               <Muted>
@@ -258,6 +260,20 @@ function findNextAppointment<T extends { scheduledAt: string }>(appointments: T[
       (first, second) =>
         new Date(first.scheduledAt).getTime() - new Date(second.scheduledAt).getTime(),
     )[0];
+}
+
+function PetThumb({ name, photoUrl }: { name: string; photoUrl?: string | null }) {
+  const imageUrl = buildApiAssetUrl(photoUrl);
+
+  if (imageUrl) {
+    return <Image source={{ uri: imageUrl }} style={styles.petThumb} />;
+  }
+
+  return (
+    <View style={styles.petThumbPlaceholder}>
+      <Text style={styles.petThumbPlaceholderText}>{name.charAt(0).toUpperCase()}</Text>
+    </View>
+  );
 }
 
 const styles = StyleSheet.create({
@@ -378,6 +394,29 @@ const styles = StyleSheet.create({
   },
   rowText: {
     flex: 1,
+  },
+  petThumb: {
+    backgroundColor: colors.surfaceAlt,
+    borderColor: colors.border,
+    borderRadius: 8,
+    borderWidth: 1,
+    height: 48,
+    width: 48,
+  },
+  petThumbPlaceholder: {
+    alignItems: 'center',
+    backgroundColor: colors.surfaceAlt,
+    borderColor: colors.border,
+    borderRadius: 8,
+    borderWidth: 1,
+    height: 48,
+    justifyContent: 'center',
+    width: 48,
+  },
+  petThumbPlaceholderText: {
+    color: colors.primaryDark,
+    fontSize: 18,
+    fontWeight: '900',
   },
   rowHeader: {
     alignItems: 'center',

@@ -5,8 +5,11 @@ import {
   Param,
   Patch,
   Post,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { UserRole } from '@prisma/client';
 import { AuthGuard } from '../auth/auth.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
@@ -46,6 +49,20 @@ export class PetsController {
     @Body() dto: UpdatePetDto,
   ) {
     return this.petsService.update(user, petId, dto);
+  }
+
+  @Post(':id/photo')
+  @UseInterceptors(
+    FileInterceptor('photo', {
+      limits: { fileSize: 4 * 1024 * 1024 },
+    }),
+  )
+  uploadPhoto(
+    @CurrentUser() user: RequestUser,
+    @Param('id') petId: string,
+    @UploadedFile() file: any,
+  ) {
+    return this.petsService.uploadPhoto(user, petId, file);
   }
 
   @Post(':id/vets/:vetProfileId')

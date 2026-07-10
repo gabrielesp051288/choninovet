@@ -279,6 +279,16 @@ cd api
 npx prisma migrate deploy
 ```
 
+Cada vez que se modifica `api/prisma/schema.prisma`, tambien hay que regenerar el cliente Prisma:
+
+```powershell
+cd api
+npx prisma generate
+npx prisma migrate deploy
+```
+
+Si la API muestra errores como `Property 'photoUrl' does not exist` al compilar, o MySQL indica que una columna no existe, normalmente falta uno de esos dos pasos: regenerar Prisma Client o aplicar la migracion pendiente.
+
 Para desarrollo local, si se necesita reiniciar la base y borrar datos:
 
 ```powershell

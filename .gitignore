@@ -12,6 +12,9 @@ app/web-build/
 .turbo/
 coverage/
 
+# Archivos subidos por usuarios en instalaciones self-hosted
+api/uploads/
+
 # Variables de entorno y secretos locales
 .env
 .env.*

@@ -119,6 +119,7 @@ model Pet {
   birthDate      DateTime?
   weightKg       Decimal?        @db.Decimal(6, 2)
   notes          String?         @db.Text
+  photoUrl       String?         @map("photo_url") @db.VarChar(512)
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
   owner          OwnerProfile    @relation(fields: [ownerProfileId], references: [id], onDelete: Cascade)

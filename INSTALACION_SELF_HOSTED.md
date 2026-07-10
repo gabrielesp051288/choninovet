@@ -545,3 +545,5 @@ Recomendación mínima: guardar al menos una copia diaria y una copia antes de a
 - La app móvil/web no debe guardar credenciales MySQL.
 - Cada negocio puede tener su propia API y su propia base.
 - La migración base del proyecto permite crear una base nueva desde cero con `npx prisma migrate deploy`.
+- Si se cambia `api/prisma/schema.prisma`, ejecutar siempre `npx prisma generate` y luego `npx prisma migrate deploy` desde `api/`.
+- Si aparece un error TypeScript como `Property 'photoUrl' does not exist`, o MySQL indica que una columna no existe, revisar primero que Prisma Client haya sido regenerado y que las migraciones pendientes hayan sido aplicadas.

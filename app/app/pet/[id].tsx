@@ -1,6 +1,7 @@
+import * as ImagePicker from 'expo-image-picker';
 import { useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Image, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { ActionLink, Badge, Card, Muted, Screen, SectionTitle } from '../components';
 import { CalendarDatePicker } from '../date-picker';
 import {
@@ -8,7 +9,8 @@ import {
   useMedicalRecords,
   type MedicalRecordType,
 } from '../hooks/use-medical-records';
-import { usePet, useUpdatePet } from '../hooks/use-pets';
+import { usePet, useUpdatePet, useUploadPetPhoto } from '../hooks/use-pets';
+import { buildApiAssetUrl } from '../lib/api';
 import { useRequireRole } from '../lib/auth-routing';
 import { formatDateOnly, parseDisplayDateToIso, todayDisplayDate } from '../lib/dates';
 import { medicalRecordTypeLabel, petSexLabel } from '../lib/labels';
@@ -38,7 +40,9 @@ export default function PetDetailScreen() {
   const recordsQuery = useMedicalRecords(id);
   const createRecord = useCreateMedicalRecord(id);
   const updatePet = useUpdatePet();
+  const uploadPetPhoto = useUploadPetPhoto();
   const pet = petQuery.data;
+  const petPhotoUrl = buildApiAssetUrl(pet?.photoUrl);
   const [type, setType] = useState<MedicalRecordType>('CONSULTATION');
   const [recordDate, setRecordDate] = useState(todayDisplayDate());
   const [title, setTitle] = useState('');
@@ -149,6 +153,39 @@ export default function PetDetailScreen() {
     setEditSuccess('Mascota actualizada correctamente.');
   }
 
+  async function handlePickPhoto() {
+    if (!id) {
+      return;
+    }
+
+    setEditError(null);
+    setEditSuccess(null);
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      allowsEditing: true,
+      aspect: [1, 1],
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      quality: 0.82,
+    });
+
+    if (result.canceled || !result.assets[0]) {
+      return;
+    }
+
+    const asset = result.assets[0];
+    const fileName = asset.fileName ?? `pet-${id}.jpg`;
+    const mimeType = asset.mimeType ?? 'image/jpeg';
+
+    await uploadPetPhoto.mutateAsync({
+      petId: id,
+      uri: asset.uri,
+      name: fileName,
+      type: mimeType,
+    });
+
+    setEditSuccess('Foto de mascota actualizada correctamente.');
+  }
+
   if (!isAllowed) {
     return (
       <Screen>
@@ -185,15 +222,47 @@ export default function PetDetailScreen() {
   return (
     <Screen>
       <Card>
-        <Text style={styles.name}>{pet.name}</Text>
-        <Muted>
-          {pet.species}
-          {pet.breed ? ` - ${pet.breed}` : ''}
-          {pet.weightKg ? ` - ${pet.weightKg} kg` : ''}
-        </Muted>
-        <Badge>{petSexLabel(pet.sex)}</Badge>
+        <View style={styles.petHeader}>
+          {petPhotoUrl ? (
+            <Image source={{ uri: petPhotoUrl }} style={styles.petPhoto} />
+          ) : (
+            <View style={styles.petPhotoPlaceholder}>
+              <Text style={styles.petPhotoPlaceholderText}>{pet.name.charAt(0).toUpperCase()}</Text>
+            </View>
+          )}
+          <View style={styles.petHeaderText}>
+            <Text style={styles.name}>{pet.name}</Text>
+            <Muted>
+              {pet.species}
+              {pet.breed ? ` - ${pet.breed}` : ''}
+              {pet.weightKg ? ` - ${pet.weightKg} kg` : ''}
+            </Muted>
+            <Badge>{petSexLabel(pet.sex)}</Badge>
+          </View>
+        </View>
         {pet.birthDate ? <Muted>Nacimiento: {formatDateOnly(pet.birthDate)}</Muted> : null}
         {pet.notes ? <Text style={styles.description}>{pet.notes}</Text> : null}
+
+        {user?.role === 'OWNER' || user?.role === 'ADMIN' ? (
+          <>
+            {uploadPetPhoto.error ? (
+              <Text style={styles.error}>
+                {uploadPetPhoto.error instanceof Error
+                  ? uploadPetPhoto.error.message
+                  : 'No se pudo subir la foto.'}
+              </Text>
+            ) : null}
+            <Pressable
+              disabled={uploadPetPhoto.isPending}
+              onPress={handlePickPhoto}
+              style={[styles.secondaryButton, uploadPetPhoto.isPending && styles.buttonDisabled]}
+            >
+              <Text style={styles.secondaryButtonText}>
+                {uploadPetPhoto.isPending ? 'Subiendo foto...' : 'Cambiar foto'}
+              </Text>
+            </Pressable>
+          </>
+        ) : null}
       </Card>
 
       {user?.role === 'OWNER' || user?.role === 'ADMIN' ? (
@@ -366,6 +435,38 @@ const styles = StyleSheet.create({
     fontSize: 30,
     fontWeight: '900',
   },
+  petHeader: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: spacing.md,
+  },
+  petHeaderText: {
+    flex: 1,
+    gap: spacing.xs,
+  },
+  petPhoto: {
+    backgroundColor: colors.surfaceAlt,
+    borderColor: colors.border,
+    borderRadius: 8,
+    borderWidth: 1,
+    height: 96,
+    width: 96,
+  },
+  petPhotoPlaceholder: {
+    alignItems: 'center',
+    backgroundColor: colors.surfaceAlt,
+    borderColor: colors.border,
+    borderRadius: 8,
+    borderWidth: 1,
+    height: 96,
+    justifyContent: 'center',
+    width: 96,
+  },
+  petPhotoPlaceholderText: {
+    color: colors.primaryDark,
+    fontSize: 34,
+    fontWeight: '900',
+  },
   record: {
     borderTopColor: colors.border,
     borderTopWidth: 1,
@@ -436,6 +537,21 @@ const styles = StyleSheet.create({
   },
   buttonText: {
     color: '#ffffff',
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  secondaryButton: {
+    alignItems: 'center',
+    backgroundColor: colors.surfaceAlt,
+    borderColor: colors.border,
+    borderRadius: 8,
+    borderWidth: 1,
+    minHeight: 48,
+    justifyContent: 'center',
+    paddingHorizontal: spacing.md,
+  },
+  secondaryButtonText: {
+    color: colors.text,
     fontSize: 15,
     fontWeight: '800',
   },

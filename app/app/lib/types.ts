@@ -9,6 +9,7 @@ export type Pet = {
   birthDate?: string | null;
   weightKg?: string | number | null;
   notes?: string | null;
+  photoUrl?: string | null;
   owner?: {
     id: string;
     firstName: string;

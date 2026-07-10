@@ -1,8 +1,9 @@
 import { useRouter } from 'expo-router';
 import { ChevronLeft, PawPrint } from 'lucide-react-native';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Badge, Card, Muted, Screen, SectionTitle } from './components';
 import { useVetPets } from './hooks/use-vet-dashboard';
+import { buildApiAssetUrl } from './lib/api';
 import { useRequireRole } from './lib/auth-routing';
 import { petSexLabel } from './lib/labels';
 import type { Pet } from './lib/types';
@@ -57,6 +58,7 @@ export default function VetPatientsScreen() {
 
         {pets.map((pet) => (
           <Pressable key={pet.id} onPress={() => router.push(`/pet/${pet.id}`)} style={styles.row}>
+            <PetThumb name={pet.name} photoUrl={pet.photoUrl} />
             <View style={styles.rowText}>
               <Text style={styles.rowTitle}>{pet.name}</Text>
               <Muted>
@@ -82,6 +84,20 @@ function EmptyState({ text }: { text: string }) {
 
 function formatOwner(owner?: Pet['owner']) {
   return owner ? `${owner.firstName} ${owner.lastName}` : 'Sin propietario';
+}
+
+function PetThumb({ name, photoUrl }: { name: string; photoUrl?: string | null }) {
+  const imageUrl = buildApiAssetUrl(photoUrl);
+
+  if (imageUrl) {
+    return <Image source={{ uri: imageUrl }} style={styles.petThumb} />;
+  }
+
+  return (
+    <View style={styles.petThumbPlaceholder}>
+      <Text style={styles.petThumbPlaceholderText}>{name.charAt(0).toUpperCase()}</Text>
+    </View>
+  );
 }
 
 const styles = StyleSheet.create({
@@ -146,6 +162,29 @@ const styles = StyleSheet.create({
   },
   rowText: {
     flex: 1,
+  },
+  petThumb: {
+    backgroundColor: colors.surfaceAlt,
+    borderColor: colors.border,
+    borderRadius: 8,
+    borderWidth: 1,
+    height: 48,
+    width: 48,
+  },
+  petThumbPlaceholder: {
+    alignItems: 'center',
+    backgroundColor: colors.surfaceAlt,
+    borderColor: colors.border,
+    borderRadius: 8,
+    borderWidth: 1,
+    height: 48,
+    justifyContent: 'center',
+    width: 48,
+  },
+  petThumbPlaceholderText: {
+    color: colors.primaryDark,
+    fontSize: 18,
+    fontWeight: '900',
   },
   rowTitle: {
     color: colors.text,

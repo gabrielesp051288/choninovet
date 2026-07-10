@@ -1,9 +1,13 @@
 import {
+  BadRequestException,
   ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { UserRole } from '@prisma/client';
+import { mkdir, unlink, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
+import { randomUUID } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreatePetDto } from './dto/create-pet.dto';
 import { UpdatePetDto } from './dto/update-pet.dto';
@@ -12,6 +16,19 @@ type RequestUser = {
   sub: string;
   role: UserRole;
 };
+
+type UploadedPhoto = {
+  buffer?: Buffer;
+  mimetype?: string;
+  originalname?: string;
+  size?: number;
+};
+
+const allowedPhotoMimeTypes = new Map([
+  ['image/jpeg', '.jpg'],
+  ['image/png', '.png'],
+  ['image/webp', '.webp'],
+]);
 
 @Injectable()
 export class PetsService {
@@ -131,6 +148,50 @@ export class PetsService {
     });
   }
 
+  async uploadPhoto(user: RequestUser, petId: string, file?: UploadedPhoto) {
+    if (user.role !== UserRole.OWNER && user.role !== UserRole.ADMIN) {
+      throw new ForbiddenException('Only owners can update pet photos');
+    }
+
+    if (!file?.buffer || !file.mimetype) {
+      throw new BadRequestException('Debes enviar una imagen');
+    }
+
+    const extension = allowedPhotoMimeTypes.get(file.mimetype);
+
+    if (!extension) {
+      throw new BadRequestException('Formato no permitido. Usa JPG, PNG o WEBP');
+    }
+
+    if (file.size && file.size > 4 * 1024 * 1024) {
+      throw new BadRequestException('La imagen no puede superar 4 MB');
+    }
+
+    const pet = await this.findAccessiblePet(user, petId);
+    const uploadsDir = join(process.cwd(), 'uploads', 'pets');
+    const filename = `${petId}-${randomUUID()}${extension}`;
+    const filePath = join(uploadsDir, filename);
+
+    await mkdir(uploadsDir, { recursive: true });
+    await writeFile(filePath, file.buffer);
+
+    if (pet.photoUrl) {
+      await this.deletePreviousPhoto(pet.photoUrl);
+    }
+
+    return this.prisma.pet.update({
+      where: { id: petId },
+      data: {
+        photoUrl: `/api/pet-photos/${filename}`,
+      },
+      include: {
+        owner: true,
+        vets: true,
+        records: true,
+      },
+    });
+  }
+
   private async findAccessiblePet(user: RequestUser, petId: string) {
     if (user.role === UserRole.ADMIN) {
       const pet = await this.prisma.pet.findUnique({
@@ -199,5 +260,19 @@ export class PetsService {
     }
 
     return vetProfile;
+  }
+
+  private async deletePreviousPhoto(photoUrl: string) {
+    const filename = photoUrl.split('/').pop();
+
+    if (!filename || !/^[a-zA-Z0-9._-]+$/.test(filename)) {
+      return;
+    }
+
+    try {
+      await unlink(join(process.cwd(), 'uploads', 'pets', filename));
+    } catch {
+      return;
+    }
   }
 }
