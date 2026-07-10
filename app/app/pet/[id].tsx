@@ -181,6 +181,7 @@ export default function PetDetailScreen() {
       uri: asset.uri,
       name: fileName,
       type: mimeType,
+      file: asset.file,
     });
 
     setEditSuccess('Foto de mascota actualizada correctamente.');

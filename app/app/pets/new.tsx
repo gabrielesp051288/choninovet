@@ -1,8 +1,9 @@
+import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Image, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Card, Muted, Screen, SectionTitle } from '../components';
-import { useCreatePet } from '../hooks/use-pets';
+import { useCreatePet, useUploadPetPhoto } from '../hooks/use-pets';
 import { useRequireRole } from '../lib/auth-routing';
 import { parseDisplayDateToIso } from '../lib/dates';
 import { colors, spacing } from '../theme';
@@ -19,6 +20,7 @@ export default function NewPetScreen() {
   const router = useRouter();
   const { isAllowed } = useRequireRole(['OWNER']);
   const createPet = useCreatePet();
+  const uploadPetPhoto = useUploadPetPhoto();
   const [name, setName] = useState('');
   const [species, setSpecies] = useState('');
   const [breed, setBreed] = useState('');
@@ -26,7 +28,25 @@ export default function NewPetScreen() {
   const [birthDate, setBirthDate] = useState('');
   const [weightKg, setWeightKg] = useState('');
   const [notes, setNotes] = useState('');
+  const [selectedPhoto, setSelectedPhoto] = useState<ImagePicker.ImagePickerAsset | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
+
+  async function handlePickPhoto() {
+    setFormError(null);
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      allowsEditing: true,
+      aspect: [1, 1],
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      quality: 0.82,
+    });
+
+    if (result.canceled || !result.assets[0]) {
+      return;
+    }
+
+    setSelectedPhoto(result.assets[0]);
+  }
 
   async function handleSubmit() {
     setFormError(null);
@@ -52,7 +72,7 @@ export default function NewPetScreen() {
       return;
     }
 
-    await createPet.mutateAsync({
+    const pet = await createPet.mutateAsync({
       name: name.trim(),
       species: species.trim(),
       breed: breed.trim() || undefined,
@@ -61,6 +81,16 @@ export default function NewPetScreen() {
       weightKg: parsedWeight,
       notes: notes.trim() || undefined,
     });
+
+    if (selectedPhoto) {
+      await uploadPetPhoto.mutateAsync({
+        petId: pet.id,
+        uri: selectedPhoto.uri,
+        name: selectedPhoto.fileName ?? `pet-${pet.id}.jpg`,
+        type: selectedPhoto.mimeType ?? 'image/jpeg',
+        file: selectedPhoto.file,
+      });
+    }
 
     router.replace('/owner');
   }
@@ -135,6 +165,30 @@ export default function NewPetScreen() {
             style={[styles.input, styles.textArea]}
             value={notes}
           />
+
+          <View style={styles.photoBox}>
+            {selectedPhoto ? (
+              <Image source={{ uri: selectedPhoto.uri }} style={styles.photoPreview} />
+            ) : (
+              <View style={styles.photoPlaceholder}>
+                <Text style={styles.photoPlaceholderText}>Foto opcional</Text>
+              </View>
+            )}
+            <View style={styles.photoActions}>
+              <Text style={styles.photoTitle}>Foto de mascota</Text>
+              <Muted>Opcional. JPG, PNG o WEBP hasta 4 MB.</Muted>
+              <Pressable onPress={handlePickPhoto} style={styles.secondaryButton}>
+                <Text style={styles.secondaryButtonText}>
+                  {selectedPhoto ? 'Cambiar foto' : 'Elegir foto'}
+                </Text>
+              </Pressable>
+              {selectedPhoto ? (
+                <Pressable onPress={() => setSelectedPhoto(null)} style={styles.clearButton}>
+                  <Text style={styles.clearButtonText}>Quitar foto</Text>
+                </Pressable>
+              ) : null}
+            </View>
+          </View>
         </View>
 
         {formError ? <Text style={styles.error}>{formError}</Text> : null}
@@ -142,17 +196,27 @@ export default function NewPetScreen() {
           <Text style={styles.error}>
             {createPet.error instanceof Error
               ? createPet.error.message
-              : 'No se pudo crear la mascota.'}
+            : 'No se pudo crear la mascota.'}
+          </Text>
+        ) : null}
+        {uploadPetPhoto.error ? (
+          <Text style={styles.error}>
+            {uploadPetPhoto.error instanceof Error
+              ? uploadPetPhoto.error.message
+              : 'La mascota fue creada, pero no se pudo subir la foto.'}
           </Text>
         ) : null}
 
         <Pressable
-          disabled={createPet.isPending}
+          disabled={createPet.isPending || uploadPetPhoto.isPending}
           onPress={handleSubmit}
-          style={[styles.button, createPet.isPending && styles.buttonDisabled]}
+          style={[
+            styles.button,
+            (createPet.isPending || uploadPetPhoto.isPending) && styles.buttonDisabled,
+          ]}
         >
           <Text style={styles.buttonText}>
-            {createPet.isPending ? 'Guardando...' : 'Guardar mascota'}
+            {createPet.isPending || uploadPetPhoto.isPending ? 'Guardando...' : 'Guardar mascota'}
           </Text>
         </Pressable>
       </Card>
@@ -177,6 +241,68 @@ const styles = StyleSheet.create({
     minHeight: 92,
     paddingTop: spacing.sm,
     textAlignVertical: 'top',
+  },
+  photoBox: {
+    backgroundColor: colors.surfaceAlt,
+    borderColor: colors.border,
+    borderRadius: 8,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: spacing.md,
+    padding: spacing.sm,
+  },
+  photoPreview: {
+    borderRadius: 8,
+    height: 86,
+    width: 86,
+  },
+  photoPlaceholder: {
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderRadius: 8,
+    borderWidth: 1,
+    height: 86,
+    justifyContent: 'center',
+    width: 86,
+  },
+  photoPlaceholderText: {
+    color: colors.muted,
+    fontSize: 12,
+    fontWeight: '800',
+    textAlign: 'center',
+  },
+  photoActions: {
+    flex: 1,
+    gap: spacing.xs,
+  },
+  photoTitle: {
+    color: colors.text,
+    fontSize: 14,
+    fontWeight: '900',
+  },
+  secondaryButton: {
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    backgroundColor: colors.primaryDark,
+    borderRadius: 8,
+    minHeight: 36,
+    justifyContent: 'center',
+    paddingHorizontal: spacing.md,
+  },
+  secondaryButtonText: {
+    color: '#ffffff',
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  clearButton: {
+    alignSelf: 'flex-start',
+    paddingVertical: spacing.xs,
+  },
+  clearButtonText: {
+    color: colors.danger,
+    fontSize: 13,
+    fontWeight: '800',
   },
   segment: {
     backgroundColor: colors.surfaceAlt,

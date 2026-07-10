@@ -22,6 +22,7 @@ export type UploadPetPhotoInput = {
   uri: string;
   name: string;
   type: string;
+  file?: File;
 };
 
 export function usePet(petId?: string) {
@@ -76,9 +77,15 @@ export function useUploadPetPhoto() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ petId, uri, name, type }: UploadPetPhotoInput) => {
+    mutationFn: (input: UploadPetPhotoInput) => {
+      const { petId, uri, name, type } = input;
       const formData = new FormData();
-      formData.append('photo', { uri, name, type } as unknown as Blob);
+
+      if (input.file) {
+        formData.append('photo', input.file, name);
+      } else {
+        formData.append('photo', { uri, name, type } as unknown as Blob);
+      }
 
       return apiUploadRequest<Pet>(`/pets/${petId}/photo`, formData, { token });
     },
