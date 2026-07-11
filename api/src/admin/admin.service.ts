@@ -6,11 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { AccountStatus, ExtensionStatus, Prisma, UserRole } from '@prisma/client';
-import AdmZip from 'adm-zip';
 import * as bcrypt from 'bcryptjs';
-import { mkdir, unlink, writeFile } from 'node:fs/promises';
-import { randomUUID } from 'node:crypto';
-import { join } from 'node:path';
 import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateVetUserDto } from './dto/create-vet-user.dto';
@@ -30,10 +26,19 @@ type ExtensionManifest = {
   version?: string;
   description: string;
   category?: string;
+  adapter?: string;
   requiresExternalService?: boolean;
   entry?: Record<string, unknown>;
   permissions?: string[];
 };
+
+const supportedDemandExtensions = [
+  {
+    key: 'none',
+    adapter: 'admin-message',
+    name: 'None',
+  },
+] as const;
 
 @Injectable()
 export class AdminService {
@@ -492,18 +497,6 @@ export class AdminService {
     const existingExtension = await this.prisma.extension.findUnique({
       where: { key: extensionKey },
     });
-    const uploadsDir = join(process.cwd(), 'uploads', 'extensions');
-    const safeOriginalName = file.originalname.replace(/[^a-zA-Z0-9._-]/g, '-');
-    const packageFilename = `${extensionKey}-${randomUUID()}-${safeOriginalName}`;
-    const packagePath = join(uploadsDir, packageFilename);
-
-    await mkdir(uploadsDir, { recursive: true });
-    await writeFile(packagePath, file.buffer);
-
-    if (existingExtension?.packagePath) {
-      await this.deleteExtensionPackage(existingExtension.packagePath);
-    }
-
     const extension = await this.prisma.extension.upsert({
       where: { key: extensionKey },
       update: {
@@ -514,7 +507,7 @@ export class AdminService {
         status: ExtensionStatus.INACTIVE,
         isInstalled: true,
         requiresExternalService: Boolean(manifest.requiresExternalService),
-        packagePath,
+        packagePath: null,
         manifest: manifest as Prisma.InputJsonValue,
       },
       create: {
@@ -526,7 +519,7 @@ export class AdminService {
         status: ExtensionStatus.INACTIVE,
         isInstalled: true,
         requiresExternalService: Boolean(manifest.requiresExternalService),
-        packagePath,
+        packagePath: null,
         manifest: manifest as Prisma.InputJsonValue,
       },
     });
@@ -630,20 +623,6 @@ export class AdminService {
     const originalName = file.originalname?.toLowerCase() ?? '';
 
     try {
-      if (originalName.endsWith('.zip')) {
-        const zip = new AdmZip(file.buffer);
-        const manifestEntry =
-          zip.getEntry('choninovet-extension.json') ?? zip.getEntry('manifest.json');
-
-        if (!manifestEntry) {
-          throw new BadRequestException(
-            'El ZIP debe incluir choninovet-extension.json o manifest.json',
-          );
-        }
-
-        return JSON.parse(manifestEntry.getData().toString('utf8')) as ExtensionManifest;
-      }
-
       if (originalName.endsWith('.json')) {
         return JSON.parse(file.buffer.toString('utf8')) as ExtensionManifest;
       }
@@ -655,7 +634,7 @@ export class AdminService {
       throw new BadRequestException('No se pudo leer el manifiesto de la extension');
     }
 
-    throw new BadRequestException('Formato no permitido. Usa .json o .zip');
+    throw new BadRequestException('Formato no permitido. Usa un archivo .json');
   }
 
   private validateExtensionManifest(manifest: ExtensionManifest) {
@@ -672,15 +651,20 @@ export class AdminService {
     if (!manifest.name?.trim() || !manifest.description?.trim()) {
       throw new BadRequestException('La extension necesita name y description');
     }
-  }
 
-  private async deleteExtensionPackage(packagePath: string) {
-    try {
-      await unlink(packagePath);
-    } catch {
-      return;
+    const supportedExtension = supportedDemandExtensions.find(
+      (extension) => extension.key === manifest.key && extension.adapter === manifest.adapter,
+    );
+
+    if (!supportedExtension) {
+      throw new BadRequestException(
+        `Extension no soportada por esta instalacion. Soportadas: ${supportedDemandExtensions
+          .map((extension) => `${extension.key}:${extension.adapter}`)
+          .join(', ')}`,
+      );
     }
   }
+
 }
 
 function accountAuditName(user: {

@@ -82,8 +82,19 @@ type AdminExtension = {
   status: ExtensionStatus;
   isInstalled: boolean;
   requiresExternalService: boolean;
+  manifest?: ExtensionManifest | null;
   config?: Record<string, unknown> | null;
   updatedAt: string;
+};
+type ExtensionManifest = {
+  adapter?: string;
+  entry?: {
+    adminSection?: {
+      title?: string;
+      description?: string;
+      message?: string;
+    };
+  };
 };
 type AdminDetailTarget = {
   id: string;
@@ -467,6 +478,7 @@ export default function AdminScreen() {
   });
   const [activeSection, setActiveSection] = useState<AdminSection>('dashboard');
   const [detailTarget, setDetailTarget] = useState<AdminDetailTarget | null>(null);
+  const [activeExtensionKey, setActiveExtensionKey] = useState<string | null>(null);
   const detailQuery = useQuery({
     queryKey: ['admin-detail', detailTarget?.type, detailTarget?.id],
     queryFn: () => {
@@ -505,6 +517,21 @@ export default function AdminScreen() {
 
   function closeDetail() {
     setDetailTarget(null);
+    setActiveSection('dashboard');
+  }
+
+  function openAdminSection(section: Exclude<AdminSection, 'dashboard' | 'detail'>) {
+    setActiveExtensionKey(null);
+    setActiveSection(section);
+  }
+
+  function openExtensionSection(extensionKey: string) {
+    setActiveExtensionKey(extensionKey);
+    setActiveSection('dashboard');
+  }
+
+  function closeExtensionSection() {
+    setActiveExtensionKey(null);
     setActiveSection('dashboard');
   }
 
@@ -582,7 +609,7 @@ export default function AdminScreen() {
     const result = await DocumentPicker.getDocumentAsync({
       copyToCacheDirectory: true,
       multiple: false,
-      type: ['application/json', 'application/zip', 'application/x-zip-compressed'],
+      type: 'application/json',
     });
 
     if (result.canceled || !result.assets[0]) {
@@ -631,7 +658,7 @@ export default function AdminScreen() {
           <Text style={styles.title}>Centro operativo</Text>
           <Muted>Accesos grandes para operar rapido desde el celular.</Muted>
         </View>
-        <SessionMenu onSystemConfig={() => setActiveSection('system')} />
+        <SessionMenu onSystemConfig={() => openAdminSection('system')} />
       </View>
 
       {dashboardQuery.isLoading ? (
@@ -650,10 +677,20 @@ export default function AdminScreen() {
 
       {dashboard ? (
         <>
-          {activeSection === 'dashboard' ? (
+          {activeExtensionKey ? (
+            <GenericExtensionSection
+              extension={extensionsQuery.data?.find(
+                (extension) => extension.key === activeExtensionKey,
+              )}
+              onBack={closeExtensionSection}
+            />
+          ) : null}
+          {activeSection === 'dashboard' && !activeExtensionKey ? (
             <DashboardLauncher
               dashboard={dashboard}
-              onSelect={(section) => setActiveSection(section)}
+              extensions={extensionsQuery.data ?? []}
+              onSelect={openAdminSection}
+              onSelectExtension={openExtensionSection}
             />
           ) : null}
           {activeSection === 'overview' ? (
@@ -821,11 +858,17 @@ export default function AdminScreen() {
 
 function DashboardLauncher({
   dashboard,
+  extensions,
   onSelect,
+  onSelectExtension,
 }: {
   dashboard: AdminDashboard;
+  extensions: AdminExtension[];
   onSelect: (section: Exclude<AdminSection, 'dashboard' | 'detail'>) => void;
+  onSelectExtension: (extensionKey: string) => void;
 }) {
+  const activeAdminExtensions = extensions.filter(hasActiveAdminSection);
+
   return (
     <>
       <View style={styles.tileGrid}>
@@ -847,6 +890,27 @@ function DashboardLauncher({
             <Text style={styles.tileDescription}>{section.description}</Text>
           </Pressable>
         ))}
+        {activeAdminExtensions.map((extension) => {
+          const adminSection = extension.manifest?.entry?.adminSection;
+
+          return (
+            <Pressable
+              key={extension.key}
+              onPress={() => onSelectExtension(extension.key)}
+              style={styles.tile}
+            >
+              <View style={styles.tileTop}>
+                <View style={styles.iconCircle}>
+                  <AdminIcon kind="extensions" />
+                </View>
+              </View>
+              <Text style={styles.tileTitle}>{adminSection?.title ?? extension.name}</Text>
+              <Text style={styles.tileDescription}>
+                {adminSection?.description ?? extension.description}
+              </Text>
+            </Pressable>
+          );
+        })}
       </View>
 
       <Card>
@@ -994,8 +1058,8 @@ function ExtensionsSection({
   return (
     <SectionShell title="Extensiones" onBack={onBack}>
       <Muted>
-        Sube paquetes de extension en formato .json o .zip. El sistema lee el manifiesto,
-        registra la extension y la deja desactivada hasta que la actives manualmente.
+        Sube un JSON de instrucciones para una extension a demanda ya soportada por
+        choninovet. El sistema la registra y la deja desactivada hasta que la actives.
       </Muted>
 
       <View style={styles.inlineActions}>
@@ -1020,7 +1084,7 @@ function ExtensionsSection({
       {error ? <Text style={styles.statusError}>{error}</Text> : null}
       {isLoading ? <Muted>Cargando extensiones disponibles.</Muted> : null}
       {!isLoading && extensions.length === 0 ? (
-        <Muted>No hay extensiones instaladas. Sube un paquete para registrarlo.</Muted>
+        <Muted>No hay extensiones registradas. Sube un JSON de instrucciones.</Muted>
       ) : null}
 
       {categories.map((category) => (
@@ -1080,6 +1144,42 @@ function ExtensionsSection({
             ))}
         </View>
       ))}
+    </SectionShell>
+  );
+}
+
+function GenericExtensionSection({
+  extension,
+  onBack,
+}: {
+  extension?: AdminExtension;
+  onBack: () => void;
+}) {
+  if (!extension || !hasActiveAdminSection(extension)) {
+    return (
+      <SectionShell title="Extension no disponible" onBack={onBack}>
+        <Muted>
+          La extension no esta activa o no declara una seccion administrativa valida.
+        </Muted>
+      </SectionShell>
+    );
+  }
+
+  const adminSection = extension.manifest?.entry?.adminSection;
+
+  return (
+    <SectionShell title={adminSection?.title ?? extension.name} onBack={onBack}>
+      <View style={styles.rowHeader}>
+        <View style={styles.accountTitle}>
+          <ShieldCheck color={colors.primaryDark} size={22} strokeWidth={2.4} />
+          <Text style={styles.rowTitle}>{extension.name}</Text>
+        </View>
+        <Badge>Activa</Badge>
+      </View>
+      <Muted>
+        {adminSection?.message ??
+          'Esta seccion fue habilitada por una extension activa. No hay contenido adicional declarado.'}
+      </Muted>
     </SectionShell>
   );
 }
@@ -1938,6 +2038,15 @@ function SmallStatusIcon({ status }: { status: ExtensionStatus }) {
   }
 
   return <XCircle color={colors.muted} size={20} strokeWidth={2.4} />;
+}
+
+function hasActiveAdminSection(extension: AdminExtension) {
+  return (
+    extension.status === 'ACTIVE' &&
+    extension.manifest?.adapter === 'admin-message' &&
+    Boolean(extension.manifest?.entry?.adminSection) &&
+    typeof extension.manifest?.entry?.adminSection === 'object'
+  );
 }
 
 function extensionStatusLabel(status: ExtensionStatus) {
