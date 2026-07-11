@@ -1,4 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import * as DocumentPicker from 'expo-document-picker';
 import {
   Bell,
   CalendarDays,
@@ -24,7 +25,7 @@ import type { ReactNode } from 'react';
 import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Badge, Card, Muted, Screen, SectionTitle, SessionMenu } from './components';
-import { apiRequest } from './lib/api';
+import { apiRequest, apiUploadRequest } from './lib/api';
 import { formatDateOnly } from './lib/dates';
 import {
   defaultSchedule,
@@ -54,6 +55,7 @@ type AdminSection =
   | 'appointments'
   | 'reminders'
   | 'schedule'
+  | 'extensions'
   | 'audit'
   | 'system'
   | 'create-vet'
@@ -65,10 +67,24 @@ type AdminIconKind =
   | 'agenda'
   | 'reminders'
   | 'schedule'
+  | 'extensions'
   | 'audit'
   | 'system'
   | 'add';
 type AccountStatus = 'PENDING' | 'ACTIVE' | 'REJECTED';
+type ExtensionStatus = 'AVAILABLE' | 'ACTIVE' | 'INACTIVE' | 'NEEDS_CONFIGURATION';
+type AdminExtension = {
+  key: string;
+  name: string;
+  version: string;
+  description: string;
+  category: string;
+  status: ExtensionStatus;
+  isInstalled: boolean;
+  requiresExternalService: boolean;
+  config?: Record<string, unknown> | null;
+  updatedAt: string;
+};
 type AdminDetailTarget = {
   id: string;
   type: 'vet' | 'owner' | 'pet';
@@ -400,6 +416,12 @@ const sections: Array<{
     value: 'schedule',
   },
   {
+    label: 'Extensiones',
+    description: 'Modulos opcionales',
+    icon: 'extensions',
+    value: 'extensions',
+  },
+  {
     label: 'Auditoría',
     description: 'Cambios y responsables',
     icon: 'audit',
@@ -436,6 +458,11 @@ export default function AdminScreen() {
     queryKey: ['admin-dashboard'],
     queryFn: () =>
       apiRequest<AdminDashboard>('/admin/dashboard', { token: accessToken }),
+    enabled: Boolean(accessToken && isAllowed),
+  });
+  const extensionsQuery = useQuery({
+    queryKey: ['admin-extensions'],
+    queryFn: () => apiRequest<AdminExtension[]>('/admin/extensions', { token: accessToken }),
     enabled: Boolean(accessToken && isAllowed),
   });
   const [activeSection, setActiveSection] = useState<AdminSection>('dashboard');
@@ -540,6 +567,49 @@ export default function AdminScreen() {
     }
   }
 
+  async function handleUpdateExtension(key: string, nextStatus: ExtensionStatus) {
+    await apiRequest(`/admin/extensions/${key}`, {
+      method: 'PATCH',
+      token: accessToken,
+      body: { status: nextStatus },
+    });
+
+    queryClient.invalidateQueries({ queryKey: ['admin-extensions'] });
+    queryClient.invalidateQueries({ queryKey: ['admin-dashboard'] });
+  }
+
+  async function handleUploadExtension() {
+    const result = await DocumentPicker.getDocumentAsync({
+      copyToCacheDirectory: true,
+      multiple: false,
+      type: ['application/json', 'application/zip', 'application/x-zip-compressed'],
+    });
+
+    if (result.canceled || !result.assets[0]) {
+      return;
+    }
+
+    const asset = result.assets[0];
+    const formData = new FormData();
+
+    if (asset.file) {
+      formData.append('extension', asset.file, asset.name);
+    } else {
+      formData.append(
+        'extension',
+        {
+          uri: asset.uri,
+          name: asset.name,
+          type: asset.mimeType ?? 'application/octet-stream',
+        } as unknown as Blob,
+      );
+    }
+
+    await apiUploadRequest('/admin/extensions/upload', formData, { token: accessToken });
+    queryClient.invalidateQueries({ queryKey: ['admin-extensions'] });
+    queryClient.invalidateQueries({ queryKey: ['admin-dashboard'] });
+  }
+
   if (!isAllowed) {
     return (
       <Screen>
@@ -628,6 +698,16 @@ export default function AdminScreen() {
               onBack={() => setActiveSection('dashboard')}
               onSave={(settings) => updateSchedule.mutate(settings)}
               schedule={scheduleQuery.data ?? defaultSchedule}
+            />
+          ) : null}
+          {activeSection === 'extensions' ? (
+            <ExtensionsSection
+              extensions={extensionsQuery.data ?? []}
+              isLoading={extensionsQuery.isLoading}
+              onBack={() => setActiveSection('dashboard')}
+              onRefresh={() => extensionsQuery.refetch()}
+              onUpload={handleUploadExtension}
+              onUpdate={handleUpdateExtension}
             />
           ) : null}
           {activeSection === 'audit' ? (
@@ -819,6 +899,10 @@ function AdminIcon({ kind }: { kind: AdminIconKind }) {
     return <Clock color={colors.primaryDark} size={29} strokeWidth={2.4} />;
   }
 
+  if (kind === 'extensions') {
+    return <ShieldCheck color={colors.primaryDark} size={29} strokeWidth={2.4} />;
+  }
+
   if (kind === 'audit') {
     return <History color={colors.primaryDark} size={29} strokeWidth={2.4} />;
   }
@@ -847,6 +931,156 @@ function SectionShell({
       <SectionTitle>{title}</SectionTitle>
       {children}
     </Card>
+  );
+}
+
+function ExtensionsSection({
+  extensions,
+  isLoading,
+  onBack,
+  onRefresh,
+  onUpload,
+  onUpdate,
+}: {
+  extensions: AdminExtension[];
+  isLoading: boolean;
+  onBack: () => void;
+  onRefresh: () => void;
+  onUpload: () => Promise<void>;
+  onUpdate: (key: string, status: ExtensionStatus) => Promise<void>;
+}) {
+  const [updatingKey, setUpdatingKey] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const categories = Array.from(new Set(extensions.map((extension) => extension.category)));
+
+  async function handleUpdate(extension: AdminExtension, status: ExtensionStatus) {
+    setUpdatingKey(extension.key);
+    setMessage(null);
+    setError(null);
+
+    try {
+      await onUpdate(extension.key, status);
+      setMessage(`${extension.name}: ${extensionStatusLabel(status)}.`);
+    } catch (updateError) {
+      setError(
+        updateError instanceof Error
+          ? updateError.message
+          : 'No se pudo actualizar la extension.',
+      );
+    } finally {
+      setUpdatingKey(null);
+    }
+  }
+
+  async function handleUpload() {
+    setIsUploading(true);
+    setMessage(null);
+    setError(null);
+
+    try {
+      await onUpload();
+      setMessage('Extension subida. Quedo instalada y desactivada por defecto.');
+    } catch (uploadError) {
+      setError(
+        uploadError instanceof Error ? uploadError.message : 'No se pudo subir la extension.',
+      );
+    } finally {
+      setIsUploading(false);
+    }
+  }
+
+  return (
+    <SectionShell title="Extensiones" onBack={onBack}>
+      <Muted>
+        Sube paquetes de extension en formato .json o .zip. El sistema lee el manifiesto,
+        registra la extension y la deja desactivada hasta que la actives manualmente.
+      </Muted>
+
+      <View style={styles.inlineActions}>
+        <Pressable
+          disabled={isUploading}
+          onPress={handleUpload}
+          style={[styles.button, isUploading && styles.buttonDisabled]}
+        >
+          <Text style={styles.buttonText}>
+            {isUploading ? 'Subiendo...' : 'Subir extension'}
+          </Text>
+        </Pressable>
+        <Pressable onPress={onRefresh} style={styles.secondaryButton}>
+          <RefreshCcw color={colors.text} size={18} strokeWidth={2.4} />
+          <Text style={styles.secondaryButtonText}>
+            {isLoading ? 'Actualizando...' : 'Actualizar'}
+          </Text>
+        </Pressable>
+      </View>
+
+      {message ? <Text style={styles.status}>{message}</Text> : null}
+      {error ? <Text style={styles.statusError}>{error}</Text> : null}
+      {isLoading ? <Muted>Cargando extensiones disponibles.</Muted> : null}
+      {!isLoading && extensions.length === 0 ? (
+        <Muted>No hay extensiones instaladas. Sube un paquete para registrarlo.</Muted>
+      ) : null}
+
+      {categories.map((category) => (
+        <View key={category} style={styles.detailBlock}>
+          <SectionTitle>{category}</SectionTitle>
+          {extensions
+            .filter((extension) => extension.category === category)
+            .map((extension) => (
+              <View key={extension.key} style={styles.row}>
+                <View style={styles.rowHeader}>
+                  <View style={styles.accountTitle}>
+                    <SmallStatusIcon status={extension.status} />
+                    <Text style={styles.rowTitle}>{extension.name}</Text>
+                  </View>
+                  <Badge>{extensionStatusLabel(extension.status)}</Badge>
+                </View>
+                <Muted>
+                  {extension.description} Version {extension.version}
+                </Muted>
+                <Muted>
+                  {extension.requiresExternalService
+                    ? 'Requiere servicio externo/configuracion adicional.'
+                    : 'Funciona con la instalacion local.'}
+                </Muted>
+
+                <View style={styles.inlineActions}>
+                  <Pressable
+                    disabled={updatingKey === extension.key}
+                    onPress={() => handleUpdate(extension, 'ACTIVE')}
+                    style={[
+                      styles.secondaryButton,
+                      extension.status === 'ACTIVE' && styles.buttonDisabled,
+                    ]}
+                  >
+                    <Text style={styles.secondaryButtonText}>
+                      {extension.isInstalled ? 'Activar' : 'Instalar'}
+                    </Text>
+                  </Pressable>
+                  <Pressable
+                    disabled={updatingKey === extension.key}
+                    onPress={() => handleUpdate(extension, 'INACTIVE')}
+                    style={styles.secondaryButton}
+                  >
+                    <Text style={styles.secondaryButtonText}>Desactivar</Text>
+                  </Pressable>
+                  {extension.requiresExternalService ? (
+                    <Pressable
+                      disabled={updatingKey === extension.key}
+                      onPress={() => handleUpdate(extension, 'NEEDS_CONFIGURATION')}
+                      style={styles.secondaryButton}
+                    >
+                      <Text style={styles.secondaryButtonText}>Config. pendiente</Text>
+                    </Pressable>
+                  ) : null}
+                </View>
+              </View>
+            ))}
+        </View>
+      ))}
+    </SectionShell>
   );
 }
 
@@ -1692,6 +1926,34 @@ function SmallRoleIcon({ role }: { role: AccountUser['role'] }) {
   }
 
   return <PawPrint color={colors.primaryDark} size={20} strokeWidth={2.4} />;
+}
+
+function SmallStatusIcon({ status }: { status: ExtensionStatus }) {
+  if (status === 'ACTIVE') {
+    return <CheckCircle color={colors.primaryDark} size={20} strokeWidth={2.4} />;
+  }
+
+  if (status === 'NEEDS_CONFIGURATION') {
+    return <TriangleAlert color={colors.warning} size={20} strokeWidth={2.4} />;
+  }
+
+  return <XCircle color={colors.muted} size={20} strokeWidth={2.4} />;
+}
+
+function extensionStatusLabel(status: ExtensionStatus) {
+  if (status === 'ACTIVE') {
+    return 'Activa';
+  }
+
+  if (status === 'INACTIVE') {
+    return 'Desactivada';
+  }
+
+  if (status === 'NEEDS_CONFIGURATION') {
+    return 'Requiere configuracion';
+  }
+
+  return 'Disponible';
 }
 
 function StatusBadge({ status }: { status: AccountStatus }) {

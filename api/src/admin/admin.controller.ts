@@ -1,9 +1,21 @@
-import { Body, Controller, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Post,
+  UploadedFile,
+  UseGuards,
+  UseInterceptors,
+} from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { UserRole } from '@prisma/client';
 import { AuthGuard } from '../auth/auth.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { AdminService } from './admin.service';
 import { CreateVetUserDto } from './dto/create-vet-user.dto';
+import { UpdateExtensionDto } from './dto/update-extension.dto';
 import { UpdateUserStatusDto } from './dto/update-user-status.dto';
 
 @Controller('admin')
@@ -44,6 +56,26 @@ export class AdminController {
     return this.adminService.getPetDetail(id);
   }
 
+  @Get('extensions')
+  getExtensions(@CurrentUser() user: { sub: string; role: UserRole }) {
+    this.adminService.assertAdmin(user.role);
+    return this.adminService.getExtensions();
+  }
+
+  @Post('extensions/upload')
+  @UseInterceptors(
+    FileInterceptor('extension', {
+      limits: { fileSize: 10 * 1024 * 1024 },
+    }),
+  )
+  uploadExtension(
+    @CurrentUser() user: { sub: string; role: UserRole },
+    @UploadedFile() file: any,
+  ) {
+    this.adminService.assertAdmin(user.role);
+    return this.adminService.uploadExtension(user.sub, file);
+  }
+
   @Post('vets')
   createVet(
     @CurrentUser() user: { sub: string; role: UserRole },
@@ -61,5 +93,15 @@ export class AdminController {
   ) {
     this.adminService.assertAdmin(user.role);
     return this.adminService.updateUserStatus(user.sub, id, dto);
+  }
+
+  @Patch('extensions/:key')
+  updateExtension(
+    @CurrentUser() user: { sub: string; role: UserRole },
+    @Param('key') key: string,
+    @Body() dto: UpdateExtensionDto,
+  ) {
+    this.adminService.assertAdmin(user.role);
+    return this.adminService.updateExtension(user.sub, key, dto);
   }
 }

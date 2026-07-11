@@ -1,10 +1,39 @@
-import { ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { AccountStatus, UserRole } from '@prisma/client';
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { AccountStatus, ExtensionStatus, Prisma, UserRole } from '@prisma/client';
+import AdmZip from 'adm-zip';
 import * as bcrypt from 'bcryptjs';
+import { mkdir, unlink, writeFile } from 'node:fs/promises';
+import { randomUUID } from 'node:crypto';
+import { join } from 'node:path';
 import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateVetUserDto } from './dto/create-vet-user.dto';
+import { UpdateExtensionDto } from './dto/update-extension.dto';
 import { UpdateUserStatusDto } from './dto/update-user-status.dto';
+
+type UploadedExtensionPackage = {
+  buffer?: Buffer;
+  mimetype?: string;
+  originalname?: string;
+  size?: number;
+};
+
+type ExtensionManifest = {
+  key: string;
+  name: string;
+  version?: string;
+  description: string;
+  category?: string;
+  requiresExternalService?: boolean;
+  entry?: Record<string, unknown>;
+  permissions?: string[];
+};
 
 @Injectable()
 export class AdminService {
@@ -153,6 +182,12 @@ export class AdminService {
       recentReminders,
       recentAuditLogs,
     };
+  }
+
+  async getExtensions() {
+    return this.prisma.extension.findMany({
+      orderBy: [{ category: 'asc' }, { name: 'asc' }],
+    });
   }
 
   async createVetUser(actorUserId: string, dto: CreateVetUserDto) {
@@ -441,6 +476,114 @@ export class AdminService {
     return updatedUser;
   }
 
+  async uploadExtension(actorUserId: string, file?: UploadedExtensionPackage) {
+    if (!file?.buffer || !file.originalname) {
+      throw new BadRequestException('Debes subir un archivo de extension');
+    }
+
+    if (file.size && file.size > 10 * 1024 * 1024) {
+      throw new BadRequestException('La extension no puede superar 10 MB');
+    }
+
+    const manifest = this.readExtensionManifest(file);
+    this.validateExtensionManifest(manifest);
+
+    const extensionKey = manifest.key.trim().toLowerCase();
+    const existingExtension = await this.prisma.extension.findUnique({
+      where: { key: extensionKey },
+    });
+    const uploadsDir = join(process.cwd(), 'uploads', 'extensions');
+    const safeOriginalName = file.originalname.replace(/[^a-zA-Z0-9._-]/g, '-');
+    const packageFilename = `${extensionKey}-${randomUUID()}-${safeOriginalName}`;
+    const packagePath = join(uploadsDir, packageFilename);
+
+    await mkdir(uploadsDir, { recursive: true });
+    await writeFile(packagePath, file.buffer);
+
+    if (existingExtension?.packagePath) {
+      await this.deleteExtensionPackage(existingExtension.packagePath);
+    }
+
+    const extension = await this.prisma.extension.upsert({
+      where: { key: extensionKey },
+      update: {
+        name: manifest.name.trim(),
+        version: manifest.version?.trim() || '1.0.0',
+        description: manifest.description.trim(),
+        category: manifest.category?.trim() || 'General',
+        status: ExtensionStatus.INACTIVE,
+        isInstalled: true,
+        requiresExternalService: Boolean(manifest.requiresExternalService),
+        packagePath,
+        manifest: manifest as Prisma.InputJsonValue,
+      },
+      create: {
+        key: extensionKey,
+        name: manifest.name.trim(),
+        version: manifest.version?.trim() || '1.0.0',
+        description: manifest.description.trim(),
+        category: manifest.category?.trim() || 'General',
+        status: ExtensionStatus.INACTIVE,
+        isInstalled: true,
+        requiresExternalService: Boolean(manifest.requiresExternalService),
+        packagePath,
+        manifest: manifest as Prisma.InputJsonValue,
+      },
+    });
+
+    await this.auditService.log({
+      action: 'EXTENSION_UPLOADED',
+      actorUserId,
+      entityId: extension.key,
+      entityName: extension.name,
+      entityType: 'EXTENSION',
+      metadata: {
+        version: extension.version,
+        previousStatus: existingExtension?.status,
+        status: extension.status,
+      },
+      summary: `Subio extension ${extension.name} (${extension.version})`,
+    });
+
+    return extension;
+  }
+
+  async updateExtension(actorUserId: string, key: string, dto: UpdateExtensionDto) {
+    const extension = await this.prisma.extension.findUnique({
+      where: { key },
+    });
+
+    if (!extension) {
+      throw new NotFoundException('Extension no encontrada');
+    }
+
+    const nextStatus = dto.status ?? extension.status;
+    const updatedExtension = await this.prisma.extension.update({
+      where: { key },
+      data: {
+        status: nextStatus,
+        isInstalled: nextStatus !== ExtensionStatus.AVAILABLE,
+        config: dto.config === undefined ? undefined : (dto.config as Prisma.InputJsonValue),
+      },
+    });
+
+    await this.auditService.log({
+      action: 'EXTENSION_UPDATED',
+      actorUserId,
+      entityId: updatedExtension.key,
+      entityName: updatedExtension.name,
+      entityType: 'EXTENSION',
+      metadata: {
+        nextStatus: updatedExtension.status,
+        previousStatus: extension.status,
+        requiresExternalService: updatedExtension.requiresExternalService,
+      },
+      summary: `Actualizo extension ${updatedExtension.name} de ${extension.status} a ${updatedExtension.status}`,
+    });
+
+    return updatedExtension;
+  }
+
   assertAdmin(role: UserRole) {
     if (role !== UserRole.ADMIN) {
       throw new ForbiddenException('Se requiere rol administrador');
@@ -481,6 +624,62 @@ export class AdminService {
         },
       },
     });
+  }
+
+  private readExtensionManifest(file: UploadedExtensionPackage): ExtensionManifest {
+    const originalName = file.originalname?.toLowerCase() ?? '';
+
+    try {
+      if (originalName.endsWith('.zip')) {
+        const zip = new AdmZip(file.buffer);
+        const manifestEntry =
+          zip.getEntry('choninovet-extension.json') ?? zip.getEntry('manifest.json');
+
+        if (!manifestEntry) {
+          throw new BadRequestException(
+            'El ZIP debe incluir choninovet-extension.json o manifest.json',
+          );
+        }
+
+        return JSON.parse(manifestEntry.getData().toString('utf8')) as ExtensionManifest;
+      }
+
+      if (originalName.endsWith('.json')) {
+        return JSON.parse(file.buffer.toString('utf8')) as ExtensionManifest;
+      }
+    } catch (error) {
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+
+      throw new BadRequestException('No se pudo leer el manifiesto de la extension');
+    }
+
+    throw new BadRequestException('Formato no permitido. Usa .json o .zip');
+  }
+
+  private validateExtensionManifest(manifest: ExtensionManifest) {
+    if (!manifest || typeof manifest !== 'object') {
+      throw new BadRequestException('Manifiesto de extension invalido');
+    }
+
+    if (!manifest.key || !/^[a-z0-9][a-z0-9-]{2,63}$/.test(manifest.key)) {
+      throw new BadRequestException(
+        'La extension necesita key valida: minusculas, numeros y guiones, 3 a 64 caracteres',
+      );
+    }
+
+    if (!manifest.name?.trim() || !manifest.description?.trim()) {
+      throw new BadRequestException('La extension necesita name y description');
+    }
+  }
+
+  private async deleteExtensionPackage(packagePath: string) {
+    try {
+      await unlink(packagePath);
+    } catch {
+      return;
+    }
   }
 }
 

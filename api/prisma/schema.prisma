@@ -59,6 +59,13 @@ enum ReminderStatus {
   COMPLETED
 }
 
+enum ExtensionStatus {
+  AVAILABLE
+  ACTIVE
+  INACTIVE
+  NEEDS_CONFIGURATION
+}
+
 model User {
   id           String        @id @default(cuid())
   email        String        @unique
@@ -262,4 +269,22 @@ model ScheduleSetting {
   updatedAt       DateTime @default(now()) @updatedAt @map("updated_at")
 
   @@map("schedule_settings")
+}
+
+model Extension {
+  key                     String          @id @db.VarChar(64)
+  name                    String          @db.VarChar(120)
+  version                 String          @default("1.0.0") @db.VarChar(40)
+  description             String          @db.Text
+  category                String          @db.VarChar(80)
+  status                  ExtensionStatus @default(AVAILABLE)
+  isInstalled             Boolean         @default(false) @map("is_installed")
+  requiresExternalService Boolean         @default(false) @map("requires_external_service")
+  packagePath             String?         @map("package_path") @db.VarChar(512)
+  manifest                Json?
+  config                  Json?
+  createdAt               DateTime        @default(now()) @map("created_at")
+  updatedAt               DateTime        @default(now()) @updatedAt @map("updated_at")
+
+  @@map("extensions")
 }
