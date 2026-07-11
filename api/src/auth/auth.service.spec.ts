@@ -2,11 +2,27 @@ import { UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { AccountStatus, UserRole } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
+import * as nodemailer from 'nodemailer';
 import { AuthService } from './auth.service';
 
+const mockSendMail = jest.fn();
+
+jest.mock('nodemailer', () => ({
+  createTransport: jest.fn(() => ({
+    sendMail: mockSendMail,
+  })),
+}));
+
 describe('AuthService', () => {
+  const configValues: Record<string, string> = {
+    JWT_SECRET: 'test-secret',
+    SMTP_HOST: 'smtp.test.local',
+    SMTP_PORT: '587',
+    SMTP_FROM: 'choninovet <no-reply@test.local>',
+    APP_PUBLIC_URL: 'http://localhost:8081',
+  };
   const configService = {
-    get: jest.fn(() => 'test-secret'),
+    get: jest.fn((key: string) => configValues[key]),
   };
   const jwtService = {
     signAsync: jest.fn(),
@@ -35,6 +51,7 @@ describe('AuthService', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    mockSendMail.mockResolvedValue({});
   });
 
   it('creates public owner accounts as pending approval', async () => {
@@ -109,7 +126,7 @@ describe('AuthService', () => {
     await expect(
       service.requestPasswordReset({ email: 'missing@test.local' }),
     ).resolves.toEqual({
-      message: 'Si el email existe, se genero un token de recuperacion',
+      message: 'Si el email existe, enviaremos instrucciones de recuperacion.',
     });
 
     expect(prisma.user.findUnique).toHaveBeenCalledWith({
@@ -117,6 +134,39 @@ describe('AuthService', () => {
       select: { id: true, email: true },
     });
     expect(jwtService.signAsync).not.toHaveBeenCalled();
+    expect(mockSendMail).not.toHaveBeenCalled();
+  });
+
+  it('sends password reset email without exposing the token in the response', async () => {
+    const { service } = createService({
+      findUnique: jest.fn().mockResolvedValue({
+        id: 'user-1',
+        email: 'owner@test.local',
+      }),
+    });
+    jwtService.signAsync.mockResolvedValue('reset-token');
+
+    const response = await service.requestPasswordReset({
+      email: 'owner@test.local',
+    });
+
+    expect(response).toEqual({
+      message: 'Si el email existe, enviaremos instrucciones de recuperacion.',
+    });
+    expect(response).not.toHaveProperty('devResetToken');
+    expect(nodemailer.createTransport).toHaveBeenCalledWith(
+      expect.objectContaining({
+        host: 'smtp.test.local',
+        port: 587,
+      }),
+    );
+    expect(mockSendMail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: 'owner@test.local',
+        subject: 'Recuperar contrasena - choninovet',
+        text: expect.stringContaining('http://localhost:8081/forgot-password?token=reset-token'),
+      }),
+    );
   });
 
   it('updates password with a valid reset token', async () => {

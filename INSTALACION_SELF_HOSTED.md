@@ -103,6 +103,13 @@ Crear `api/.env`:
 DATABASE_URL="mysql://choninovet:password_seguro@localhost:3306/choninovet"
 JWT_SECRET="cambiar-por-un-secreto-largo"
 PORT=3000
+APP_PUBLIC_URL="https://app.tudominio.com"
+SMTP_HOST="smtp.tudominio.com"
+SMTP_PORT=587
+SMTP_SECURE=false
+SMTP_USER="usuario-smtp"
+SMTP_PASS="password-smtp"
+SMTP_FROM="choninovet <no-reply@tudominio.com>"
 ```
 
 `JWT_SECRET` es la clave privada que usa la API para firmar sesiones. No es una contraseña de usuario y no se ingresa en la app.
@@ -118,6 +125,10 @@ Copiar el resultado en `api/.env`:
 ```env
 JWT_SECRET="resultado_generado"
 ```
+
+`APP_PUBLIC_URL` debe apuntar a la URL publica de la app web. La API la usa para generar enlaces de recuperacion de contrasena.
+
+Las variables `SMTP_*` permiten enviar emails reales. Sin SMTP configurado, la recuperacion de contrasena no puede enviar el enlace al usuario.
 
 Aplicar migraciones:
 

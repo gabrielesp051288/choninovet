@@ -1,3 +1,4 @@
+import { useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { ActionLink, Card, Muted, Screen, SectionTitle } from './components';
@@ -8,19 +9,19 @@ import { colors, spacing } from './theme';
 
 type RequestResetResponse = {
   message: string;
-  devResetToken?: string;
 };
 
 export default function ForgotPasswordScreen() {
+  const { token: tokenParam } = useLocalSearchParams<{ token?: string }>();
   const apiUrl = useApiConfigStore((state) => state.apiUrl);
   const isApiConfigHydrated = useApiConfigStore((state) => state.isHydrated);
   const [email, setEmail] = useState('');
-  const [token, setToken] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [isRequesting, setIsRequesting] = useState(false);
   const [isConfirming, setIsConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const resetToken = Array.isArray(tokenParam) ? tokenParam[0] : tokenParam;
 
   if (isApiConfigHydrated && !apiUrl) {
     return <ServerConfigView />;
@@ -40,12 +41,7 @@ export default function ForgotPasswordScreen() {
         },
       );
 
-      setToken(response.devResetToken ?? '');
-      setSuccess(
-        response.devResetToken
-          ? 'Token generado para desarrollo.'
-          : response.message,
-      );
+      setSuccess(response.message);
     } catch (requestError) {
       setError(
         requestError instanceof Error
@@ -63,10 +59,15 @@ export default function ForgotPasswordScreen() {
     setIsConfirming(true);
 
     try {
+      if (!resetToken) {
+        setError('El enlace de recuperacion no tiene token o esta incompleto.');
+        return;
+      }
+
       await apiRequest('/auth/password-reset/confirm', {
         method: 'POST',
         body: {
-          token: token.trim(),
+          token: resetToken,
           newPassword,
         },
       });
@@ -89,7 +90,7 @@ export default function ForgotPasswordScreen() {
       <Card>
         <SectionTitle>Recuperar contrasena</SectionTitle>
         <Muted>
-          En este MVP se genera un token de recuperacion para desarrollo local.
+          Ingresa tu email y te enviaremos un enlace para crear una nueva contrasena.
         </Muted>
 
         <View style={styles.form}>
@@ -107,22 +108,16 @@ export default function ForgotPasswordScreen() {
             style={[styles.button, isRequesting && styles.buttonDisabled]}
           >
             <Text style={styles.buttonText}>
-              {isRequesting ? 'Generando...' : 'Generar token'}
+              {isRequesting ? 'Enviando...' : 'Enviar enlace'}
             </Text>
           </Pressable>
         </View>
       </Card>
 
+      {resetToken ? (
       <Card>
         <SectionTitle>Cambiar contrasena</SectionTitle>
         <View style={styles.form}>
-          <TextInput
-            multiline
-            onChangeText={setToken}
-            placeholder="Token"
-            style={[styles.input, styles.tokenInput]}
-            value={token}
-          />
           <TextInput
             onChangeText={setNewPassword}
             placeholder="Nueva contrasena min. 8 caracteres"
@@ -149,6 +144,20 @@ export default function ForgotPasswordScreen() {
           Volver al inicio
         </ActionLink>
       </Card>
+      ) : (
+        <Card>
+          <SectionTitle>Revisa tu email</SectionTitle>
+          <Muted>
+            Cuando abras el enlace de recuperacion desde el email, aca vas a poder
+            crear una nueva contrasena.
+          </Muted>
+          {error ? <Text style={styles.error}>{error}</Text> : null}
+          {success ? <Text style={styles.success}>{success}</Text> : null}
+          <ActionLink href="/" secondary>
+            Volver al inicio
+          </ActionLink>
+        </Card>
+      )}
     </Screen>
   );
 }
@@ -165,11 +174,6 @@ const styles = StyleSheet.create({
     color: colors.text,
     minHeight: 48,
     paddingHorizontal: spacing.md,
-  },
-  tokenInput: {
-    minHeight: 92,
-    paddingTop: spacing.sm,
-    textAlignVertical: 'top',
   },
   button: {
     alignItems: 'center',

@@ -8,6 +8,7 @@ import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { AccountStatus, UserRole } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
+import * as nodemailer from 'nodemailer';
 import { PrismaService } from '../prisma/prisma.service';
 import { ConfirmPasswordResetDto } from './dto/confirm-password-reset.dto';
 import { LoginDto } from './dto/login.dto';
@@ -156,6 +157,7 @@ export class AuthService {
   }
 
   async requestPasswordReset(dto: RequestPasswordResetDto) {
+    const emailConfig = this.getEmailConfig();
     const user = await this.prisma.user.findUnique({
       where: { email: dto.email.toLowerCase() },
       select: { id: true, email: true },
@@ -163,11 +165,11 @@ export class AuthService {
 
     if (!user) {
       return {
-        message: 'Si el email existe, se genero un token de recuperacion',
+        message: 'Si el email existe, enviaremos instrucciones de recuperacion.',
       };
     }
 
-    const devResetToken = await this.jwtService.signAsync(
+    const resetToken = await this.jwtService.signAsync(
       {
         sub: user.id,
         email: user.email,
@@ -179,9 +181,10 @@ export class AuthService {
       },
     );
 
+    await this.sendPasswordResetEmail(user.email, resetToken, emailConfig);
+
     return {
-      message: 'Token de recuperacion generado',
-      devResetToken,
+      message: 'Si el email existe, enviaremos instrucciones de recuperacion.',
     };
   }
 
@@ -249,6 +252,65 @@ export class AuthService {
   private sanitizeUser(user: AuthUser) {
     const { passwordHash: _passwordHash, ...safeUser } = user;
     return safeUser;
+  }
+
+  private getEmailConfig() {
+    const host = this.configService.get<string>('SMTP_HOST');
+    const port = Number(this.configService.get<string>('SMTP_PORT') ?? 587);
+    const user = this.configService.get<string>('SMTP_USER');
+    const pass = this.configService.get<string>('SMTP_PASS');
+    const from = this.configService.get<string>('SMTP_FROM');
+    const appPublicUrl = this.configService.get<string>('APP_PUBLIC_URL');
+    const secure = this.configService.get<string>('SMTP_SECURE') === 'true' || port === 465;
+
+    if (!host || !from || !appPublicUrl || Number.isNaN(port)) {
+      throw new BadRequestException(
+        'Servicio de email no configurado. Revisa SMTP_HOST, SMTP_FROM y APP_PUBLIC_URL.',
+      );
+    }
+
+    return {
+      host,
+      port,
+      secure,
+      auth: user && pass ? { user, pass } : undefined,
+      from,
+      appPublicUrl,
+    };
+  }
+
+  private async sendPasswordResetEmail(
+    email: string,
+    token: string,
+    config: ReturnType<AuthService['getEmailConfig']>,
+  ) {
+    const resetUrl = new URL('/forgot-password', config.appPublicUrl);
+    resetUrl.searchParams.set('token', token);
+
+    const transporter = nodemailer.createTransport({
+      host: config.host,
+      port: config.port,
+      secure: config.secure,
+      auth: config.auth,
+    });
+
+    await transporter.sendMail({
+      from: config.from,
+      to: email,
+      subject: 'Recuperar contrasena - choninovet',
+      text: [
+        'Recibimos una solicitud para recuperar tu contrasena en choninovet.',
+        '',
+        `Abri este enlace para crear una nueva contrasena: ${resetUrl.toString()}`,
+        '',
+        'El enlace vence en 15 minutos. Si no solicitaste este cambio, podes ignorar este email.',
+      ].join('\n'),
+      html: `
+        <p>Recibimos una solicitud para recuperar tu contrasena en <strong>choninovet</strong>.</p>
+        <p><a href="${resetUrl.toString()}">Crear nueva contrasena</a></p>
+        <p>El enlace vence en 15 minutos. Si no solicitaste este cambio, podes ignorar este email.</p>
+      `,
+    });
   }
 }
 
