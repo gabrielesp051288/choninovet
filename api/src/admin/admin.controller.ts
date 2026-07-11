@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Patch,
@@ -95,5 +96,14 @@ export class AdminController {
   ) {
     this.adminService.assertAdmin(user.role);
     return this.adminService.updateExtension(user.sub, key, dto);
+  }
+
+  @Delete('extensions/:key')
+  uninstallExtension(
+    @CurrentUser() user: { sub: string; role: UserRole },
+    @Param('key') key: string,
+  ) {
+    this.adminService.assertAdmin(user.role);
+    return this.adminService.uninstallExtension(user.sub, key);
   }
 }

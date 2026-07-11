@@ -562,6 +562,38 @@ export class AdminService {
     return updatedExtension;
   }
 
+  async uninstallExtension(actorUserId: string, key: string) {
+    const extension = await this.prisma.extension.findUnique({
+      where: { key },
+    });
+
+    if (!extension) {
+      throw new NotFoundException('Extension no encontrada');
+    }
+
+    await this.auditService.log({
+      action: 'EXTENSION_UNINSTALLED',
+      actorUserId,
+      entityId: extension.key,
+      entityName: extension.name,
+      entityType: 'EXTENSION',
+      metadata: {
+        previousStatus: extension.status,
+        version: extension.version,
+      },
+      summary: `Desinstalo extension ${extension.name} (${extension.version})`,
+    });
+
+    await this.prisma.extension.delete({
+      where: { key },
+    });
+
+    return {
+      message: 'Extension desinstalada',
+      key,
+    };
+  }
+
   assertAdmin(role: UserRole) {
     if (role !== UserRole.ADMIN) {
       throw new ForbiddenException('Se requiere rol administrador');

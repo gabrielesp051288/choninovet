@@ -604,6 +604,20 @@ export default function AdminScreen() {
     queryClient.invalidateQueries({ queryKey: ['admin-dashboard'] });
   }
 
+  async function handleUninstallExtension(key: string) {
+    await apiRequest(`/admin/extensions/${key}`, {
+      method: 'DELETE',
+      token: accessToken,
+    });
+
+    if (activeExtensionKey === key) {
+      setActiveExtensionKey(null);
+    }
+
+    queryClient.invalidateQueries({ queryKey: ['admin-extensions'] });
+    queryClient.invalidateQueries({ queryKey: ['admin-dashboard'] });
+  }
+
   async function handleRegisterExtension(manifest: Record<string, unknown>) {
     await apiRequest('/admin/extensions/register', {
       method: 'POST',
@@ -721,6 +735,7 @@ export default function AdminScreen() {
               onBack={() => setActiveSection('dashboard')}
               onRegister={handleRegisterExtension}
               onRefresh={() => extensionsQuery.refetch()}
+              onUninstall={handleUninstallExtension}
               onUpdate={handleUpdateExtension}
             />
           ) : null}
@@ -981,6 +996,7 @@ function ExtensionsSection({
   onBack,
   onRegister,
   onRefresh,
+  onUninstall,
   onUpdate,
 }: {
   extensions: AdminExtension[];
@@ -988,9 +1004,11 @@ function ExtensionsSection({
   onBack: () => void;
   onRegister: (manifest: Record<string, unknown>) => Promise<void>;
   onRefresh: () => void;
+  onUninstall: (key: string) => Promise<void>;
   onUpdate: (key: string, status: ExtensionStatus) => Promise<void>;
 }) {
   const [updatingKey, setUpdatingKey] = useState<string | null>(null);
+  const [uninstallingKey, setUninstallingKey] = useState<string | null>(null);
   const [isRegistering, setIsRegistering] = useState(false);
   const [manifestText, setManifestText] = useState('');
   const [message, setMessage] = useState<string | null>(null);
@@ -1013,6 +1031,25 @@ function ExtensionsSection({
       );
     } finally {
       setUpdatingKey(null);
+    }
+  }
+
+  async function handleUninstall(extension: AdminExtension) {
+    setUninstallingKey(extension.key);
+    setMessage(null);
+    setError(null);
+
+    try {
+      await onUninstall(extension.key);
+      setMessage(`${extension.name}: desinstalada.`);
+    } catch (uninstallError) {
+      setError(
+        uninstallError instanceof Error
+          ? uninstallError.message
+          : 'No se pudo desinstalar la extension.',
+      );
+    } finally {
+      setUninstallingKey(null);
     }
   }
 
@@ -1165,6 +1202,15 @@ function ExtensionsSection({
                       <Text style={styles.secondaryButtonText}>Config. pendiente</Text>
                     </Pressable>
                   ) : null}
+                  <Pressable
+                    disabled={uninstallingKey === extension.key}
+                    onPress={() => handleUninstall(extension)}
+                    style={[styles.secondaryButton, styles.dangerOutlineButton]}
+                  >
+                    <Text style={styles.dangerOutlineText}>
+                      {uninstallingKey === extension.key ? 'Desinstalando...' : 'Desinstalar'}
+                    </Text>
+                  </Pressable>
                 </View>
               </View>
             ))}
