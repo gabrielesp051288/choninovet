@@ -62,6 +62,25 @@ El panel veterinario/a funciona como dashboard de accesos mobile-first. Desde ah
 
 La administración permite crear veterinarios/as, aprobar o rechazar cuentas de propietarios, revisar usuarios, pacientes, agenda, horarios de atención, métricas y auditoría.
 
+## Extensiones a demanda
+
+choninovet incluye una funcion de extensiones a demanda en desarrollo.
+
+El objetivo es permitir que una instalacion habilite funciones opcionales sin incorporarlas siempre al nucleo del sistema. La funcion real debe estar preprogramada en choninovet como un `adapter` soportado. El archivo JSON que se carga desde administracion no trae codigo ejecutable: solo registra y configura una extension ya soportada por esa instalacion.
+
+Flujo actual:
+
+1. Entrar como administrador.
+2. Abrir `Extensiones`.
+3. Registrar un JSON de extension soportada.
+4. La extension queda desactivada por defecto.
+5. Activarla desde el panel cuando se quiera usar.
+6. Desactivarla o desinstalarla si ya no se necesita.
+
+La primera extension de prueba soportada es `none`, con adapter `admin-message`. Sirve para validar el flujo: al activarla, agrega una tarjeta y una seccion simple en el dashboard de administracion.
+
+Esta funcion no ejecuta codigo arbitrario subido por terceros.
+
 ## Stack
 
 - Frontend mobile/web: Expo SDK 54, React Native, Expo Router y React Native Web.
