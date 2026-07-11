@@ -5,11 +5,8 @@ import {
   Param,
   Patch,
   Post,
-  UploadedFile,
   UseGuards,
-  UseInterceptors,
 } from '@nestjs/common';
-import { FileInterceptor } from '@nestjs/platform-express';
 import { UserRole } from '@prisma/client';
 import { AuthGuard } from '../auth/auth.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
@@ -62,18 +59,13 @@ export class AdminController {
     return this.adminService.getExtensions();
   }
 
-  @Post('extensions/upload')
-  @UseInterceptors(
-    FileInterceptor('extension', {
-      limits: { fileSize: 10 * 1024 * 1024 },
-    }),
-  )
-  uploadExtension(
+  @Post('extensions/register')
+  registerExtension(
     @CurrentUser() user: { sub: string; role: UserRole },
-    @UploadedFile() file: any,
+    @Body() manifest: Record<string, unknown>,
   ) {
     this.adminService.assertAdmin(user.role);
-    return this.adminService.uploadExtension(user.sub, file);
+    return this.adminService.registerExtension(user.sub, manifest);
   }
 
   @Post('vets')

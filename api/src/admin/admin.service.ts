@@ -13,13 +13,6 @@ import { CreateVetUserDto } from './dto/create-vet-user.dto';
 import { UpdateExtensionDto } from './dto/update-extension.dto';
 import { UpdateUserStatusDto } from './dto/update-user-status.dto';
 
-type UploadedExtensionPackage = {
-  buffer?: Buffer;
-  mimetype?: string;
-  originalname?: string;
-  size?: number;
-};
-
 type ExtensionManifest = {
   key: string;
   name: string;
@@ -481,16 +474,8 @@ export class AdminService {
     return updatedUser;
   }
 
-  async uploadExtension(actorUserId: string, file?: UploadedExtensionPackage) {
-    if (!file?.buffer || !file.originalname) {
-      throw new BadRequestException('Debes subir un archivo de extension');
-    }
-
-    if (file.size && file.size > 10 * 1024 * 1024) {
-      throw new BadRequestException('La extension no puede superar 10 MB');
-    }
-
-    const manifest = this.readExtensionManifest(file);
+  async registerExtension(actorUserId: string, input: Record<string, unknown>) {
+    const manifest = input as ExtensionManifest;
     this.validateExtensionManifest(manifest);
 
     const extensionKey = manifest.key.trim().toLowerCase();
@@ -617,24 +602,6 @@ export class AdminService {
         },
       },
     });
-  }
-
-  private readExtensionManifest(file: UploadedExtensionPackage): ExtensionManifest {
-    const originalName = file.originalname?.toLowerCase() ?? '';
-
-    try {
-      if (originalName.endsWith('.json')) {
-        return JSON.parse(file.buffer.toString('utf8')) as ExtensionManifest;
-      }
-    } catch (error) {
-      if (error instanceof BadRequestException) {
-        throw error;
-      }
-
-      throw new BadRequestException('No se pudo leer el manifiesto de la extension');
-    }
-
-    throw new BadRequestException('Formato no permitido. Usa un archivo .json');
   }
 
   private validateExtensionManifest(manifest: ExtensionManifest) {

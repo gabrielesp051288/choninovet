@@ -1,5 +1,4 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import * as DocumentPicker from 'expo-document-picker';
 import {
   Bell,
   CalendarDays,
@@ -25,7 +24,7 @@ import type { ReactNode } from 'react';
 import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Badge, Card, Muted, Screen, SectionTitle, SessionMenu } from './components';
-import { apiRequest, apiUploadRequest } from './lib/api';
+import { apiRequest } from './lib/api';
 import { formatDateOnly } from './lib/dates';
 import {
   defaultSchedule,
@@ -605,34 +604,12 @@ export default function AdminScreen() {
     queryClient.invalidateQueries({ queryKey: ['admin-dashboard'] });
   }
 
-  async function handleUploadExtension() {
-    const result = await DocumentPicker.getDocumentAsync({
-      copyToCacheDirectory: true,
-      multiple: false,
-      type: 'application/json',
+  async function handleRegisterExtension(manifest: Record<string, unknown>) {
+    await apiRequest('/admin/extensions/register', {
+      method: 'POST',
+      token: accessToken,
+      body: manifest,
     });
-
-    if (result.canceled || !result.assets[0]) {
-      return;
-    }
-
-    const asset = result.assets[0];
-    const formData = new FormData();
-
-    if (asset.file) {
-      formData.append('extension', asset.file, asset.name);
-    } else {
-      formData.append(
-        'extension',
-        {
-          uri: asset.uri,
-          name: asset.name,
-          type: asset.mimeType ?? 'application/octet-stream',
-        } as unknown as Blob,
-      );
-    }
-
-    await apiUploadRequest('/admin/extensions/upload', formData, { token: accessToken });
     queryClient.invalidateQueries({ queryKey: ['admin-extensions'] });
     queryClient.invalidateQueries({ queryKey: ['admin-dashboard'] });
   }
@@ -742,8 +719,8 @@ export default function AdminScreen() {
               extensions={extensionsQuery.data ?? []}
               isLoading={extensionsQuery.isLoading}
               onBack={() => setActiveSection('dashboard')}
+              onRegister={handleRegisterExtension}
               onRefresh={() => extensionsQuery.refetch()}
-              onUpload={handleUploadExtension}
               onUpdate={handleUpdateExtension}
             />
           ) : null}
@@ -1002,19 +979,20 @@ function ExtensionsSection({
   extensions,
   isLoading,
   onBack,
+  onRegister,
   onRefresh,
-  onUpload,
   onUpdate,
 }: {
   extensions: AdminExtension[];
   isLoading: boolean;
   onBack: () => void;
+  onRegister: (manifest: Record<string, unknown>) => Promise<void>;
   onRefresh: () => void;
-  onUpload: () => Promise<void>;
   onUpdate: (key: string, status: ExtensionStatus) => Promise<void>;
 }) {
   const [updatingKey, setUpdatingKey] = useState<string | null>(null);
-  const [isUploading, setIsUploading] = useState(false);
+  const [isRegistering, setIsRegistering] = useState(false);
+  const [manifestText, setManifestText] = useState('');
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const categories = Array.from(new Set(extensions.map((extension) => extension.category)));
@@ -1038,20 +1016,49 @@ function ExtensionsSection({
     }
   }
 
-  async function handleUpload() {
-    setIsUploading(true);
+  async function handleRegisterFromText() {
+    setIsRegistering(true);
     setMessage(null);
     setError(null);
 
     try {
-      await onUpload();
-      setMessage('Extension subida. Quedo instalada y desactivada por defecto.');
-    } catch (uploadError) {
+      const manifest = JSON.parse(manifestText) as Record<string, unknown>;
+      await onRegister(manifest);
+      setManifestText('');
+      setMessage('Extension registrada. Quedo desactivada por defecto.');
+    } catch (registerError) {
       setError(
-        uploadError instanceof Error ? uploadError.message : 'No se pudo subir la extension.',
+        registerError instanceof Error
+          ? registerError.message
+          : 'No se pudo registrar la extension.',
       );
     } finally {
-      setIsUploading(false);
+      setIsRegistering(false);
+    }
+  }
+
+  async function handlePickJsonFile() {
+    setIsRegistering(true);
+    setMessage(null);
+    setError(null);
+
+    try {
+      const manifest = await pickJsonManifestFromBrowser();
+
+      if (!manifest) {
+        return;
+      }
+
+      await onRegister(manifest);
+      setMessage('Extension registrada. Quedo desactivada por defecto.');
+    } catch (registerError) {
+      setError(
+        registerError instanceof Error
+          ? registerError.message
+          : 'No se pudo registrar la extension.',
+      );
+    } finally {
+      setIsRegistering(false);
     }
   }
 
@@ -1064,12 +1071,12 @@ function ExtensionsSection({
 
       <View style={styles.inlineActions}>
         <Pressable
-          disabled={isUploading}
-          onPress={handleUpload}
-          style={[styles.button, isUploading && styles.buttonDisabled]}
+          disabled={isRegistering}
+          onPress={handlePickJsonFile}
+          style={[styles.button, isRegistering && styles.buttonDisabled]}
         >
           <Text style={styles.buttonText}>
-            {isUploading ? 'Subiendo...' : 'Subir extension'}
+            {isRegistering ? 'Registrando...' : 'Seleccionar JSON'}
           </Text>
         </Pressable>
         <Pressable onPress={onRefresh} style={styles.secondaryButton}>
@@ -1082,6 +1089,25 @@ function ExtensionsSection({
 
       {message ? <Text style={styles.status}>{message}</Text> : null}
       {error ? <Text style={styles.statusError}>{error}</Text> : null}
+      <View style={styles.form}>
+        <TextInput
+          multiline
+          onChangeText={setManifestText}
+          placeholder="Pegar JSON de extension"
+          style={[styles.input, styles.textArea]}
+          value={manifestText}
+        />
+        <Pressable
+          disabled={isRegistering || !manifestText.trim()}
+          onPress={handleRegisterFromText}
+          style={[
+            styles.secondaryButton,
+            (isRegistering || !manifestText.trim()) && styles.buttonDisabled,
+          ]}
+        >
+          <Text style={styles.secondaryButtonText}>Registrar JSON pegado</Text>
+        </Pressable>
+      </View>
       {isLoading ? <Muted>Cargando extensiones disponibles.</Muted> : null}
       {!isLoading && extensions.length === 0 ? (
         <Muted>No hay extensiones registradas. Sube un JSON de instrucciones.</Muted>
@@ -2047,6 +2073,45 @@ function hasActiveAdminSection(extension: AdminExtension) {
     Boolean(extension.manifest?.entry?.adminSection) &&
     typeof extension.manifest?.entry?.adminSection === 'object'
   );
+}
+
+function pickJsonManifestFromBrowser(): Promise<Record<string, unknown> | null> {
+  if (typeof document === 'undefined') {
+    return Promise.reject(
+      new Error('La seleccion de archivo solo esta disponible en web. Pega el JSON en el campo.'),
+    );
+  }
+
+  return new Promise((resolve, reject) => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'application/json,.json';
+    input.style.display = 'none';
+
+    input.onchange = async () => {
+      try {
+        const file = input.files?.[0];
+        document.body.removeChild(input);
+
+        if (!file) {
+          resolve(null);
+          return;
+        }
+
+        resolve(JSON.parse(await file.text()) as Record<string, unknown>);
+      } catch (error) {
+        reject(error instanceof Error ? error : new Error('No se pudo leer el JSON.'));
+      }
+    };
+
+    input.oncancel = () => {
+      document.body.removeChild(input);
+      resolve(null);
+    };
+
+    document.body.appendChild(input);
+    input.click();
+  });
 }
 
 function extensionStatusLabel(status: ExtensionStatus) {
@@ -3055,6 +3120,11 @@ const styles = StyleSheet.create({
     color: colors.text,
     minHeight: 48,
     paddingHorizontal: spacing.md,
+  },
+  textArea: {
+    minHeight: 132,
+    paddingTop: spacing.sm,
+    textAlignVertical: 'top',
   },
   status: {
     color: colors.primaryDark,
