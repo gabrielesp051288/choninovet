@@ -6,6 +6,7 @@ import {
   Eye,
   FileDown,
   FileText,
+  ListChecks,
   Paperclip,
   Pencil,
   Pill,
@@ -15,7 +16,7 @@ import {
   Stethoscope,
 } from 'lucide-react-native';
 import { useEffect, useMemo, useState } from 'react';
-import { Image, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Image, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { ActionLink, Badge, Card, Muted, Screen, SectionTitle } from '../components';
 import { CalendarDatePicker } from '../date-picker';
 import {
@@ -76,6 +77,8 @@ export default function PetDetailScreen() {
   const [isRecordFormOpen, setIsRecordFormOpen] = useState(false);
   const [editingRecordId, setEditingRecordId] = useState<string | null>(null);
   const [selectedRecordId, setSelectedRecordId] = useState<string | null>(null);
+  const [isSelectingRecords, setIsSelectingRecords] = useState(false);
+  const [selectedRecordIdsForPrint, setSelectedRecordIdsForPrint] = useState<string[]>([]);
   const [formError, setFormError] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
   const [editSpecies, setEditSpecies] = useState('');
@@ -106,6 +109,10 @@ export default function PetDetailScreen() {
   const selectedRecord = useMemo(
     () => records.find((record) => record.id === selectedRecordId) ?? null,
     [records, selectedRecordId],
+  );
+  const selectedRecordsForPrint = useMemo(
+    () => records.filter((record) => selectedRecordIdsForPrint.includes(record.id)),
+    [records, selectedRecordIdsForPrint],
   );
 
   useEffect(() => {
@@ -252,6 +259,64 @@ export default function PetDetailScreen() {
 
   function openRecordDetail(record: MedicalRecord) {
     setSelectedRecordId(record.id);
+  }
+
+  function toggleRecordPrintSelection(recordId: string) {
+    setSelectedRecordIdsForPrint((current) =>
+      current.includes(recordId)
+        ? current.filter((idToKeep) => idToKeep !== recordId)
+        : [...current, recordId],
+    );
+  }
+
+  function togglePrintSelectionMode() {
+    setIsSelectingRecords((current) => {
+      if (current) {
+        setSelectedRecordIdsForPrint([]);
+      }
+
+      return !current;
+    });
+  }
+
+  function printCompleteHistory() {
+    openPrintableMedicalRecordCollection({
+      mode: 'complete',
+      output: 'print',
+      ownerName: pet?.owner ? `${pet.owner.firstName} ${pet.owner.lastName}` : 'Sin propietario',
+      petName: pet?.name ?? 'Paciente',
+      records,
+    });
+  }
+
+  function pdfCompleteHistory() {
+    openPrintableMedicalRecordCollection({
+      mode: 'complete',
+      output: 'pdf',
+      ownerName: pet?.owner ? `${pet.owner.firstName} ${pet.owner.lastName}` : 'Sin propietario',
+      petName: pet?.name ?? 'Paciente',
+      records,
+    });
+  }
+
+  function printSelectedHistory() {
+    openPrintableMedicalRecordCollection({
+      mode: 'selected',
+      output: 'print',
+      ownerName: pet?.owner ? `${pet.owner.firstName} ${pet.owner.lastName}` : 'Sin propietario',
+      petName: pet?.name ?? 'Paciente',
+      records: selectedRecordsForPrint,
+    });
+  }
+
+  function pdfSelectedHistory() {
+    openPrintableMedicalRecordCollection({
+      mode: 'selected',
+      output: 'pdf',
+      ownerName: pet?.owner ? `${pet.owner.firstName} ${pet.owner.lastName}` : 'Sin propietario',
+      petName: pet?.name ?? 'Paciente',
+      records: selectedRecordsForPrint,
+    });
   }
 
   async function handleUpdatePet() {
@@ -552,6 +617,73 @@ export default function PetDetailScreen() {
           ))}
         </View>
 
+        {records.length > 0 ? (
+          <View style={styles.printToolbar}>
+            <Pressable onPress={printCompleteHistory} style={styles.printToolbarButton}>
+              <Printer color={colors.primaryDark} size={17} strokeWidth={2.4} />
+              <Text style={styles.printToolbarText}>Imprimir todo</Text>
+            </Pressable>
+            <Pressable onPress={pdfCompleteHistory} style={styles.printToolbarButton}>
+              <FileDown color={colors.primaryDark} size={17} strokeWidth={2.4} />
+              <Text style={styles.printToolbarText}>Reporte PDF</Text>
+            </Pressable>
+            <Pressable onPress={togglePrintSelectionMode} style={styles.printToolbarButton}>
+              <ListChecks color={colors.primaryDark} size={17} strokeWidth={2.4} />
+              <Text style={styles.printToolbarText}>
+                {isSelectingRecords ? 'Cancelar seleccion' : 'Seleccionar'}
+              </Text>
+            </Pressable>
+            {isSelectingRecords ? (
+              <>
+                <Pressable
+                  disabled={selectedRecordsForPrint.length === 0}
+                  onPress={printSelectedHistory}
+                  style={[
+                    styles.printToolbarButton,
+                    selectedRecordsForPrint.length === 0 && styles.disabledAction,
+                  ]}
+                >
+                  <Printer
+                    color={selectedRecordsForPrint.length === 0 ? colors.muted : colors.primaryDark}
+                    size={17}
+                    strokeWidth={2.4}
+                  />
+                  <Text
+                    style={[
+                      styles.printToolbarText,
+                      selectedRecordsForPrint.length === 0 && styles.disabledActionText,
+                    ]}
+                  >
+                    Imprimir seleccion ({selectedRecordsForPrint.length})
+                  </Text>
+                </Pressable>
+                <Pressable
+                  disabled={selectedRecordsForPrint.length === 0}
+                  onPress={pdfSelectedHistory}
+                  style={[
+                    styles.printToolbarButton,
+                    selectedRecordsForPrint.length === 0 && styles.disabledAction,
+                  ]}
+                >
+                  <FileDown
+                    color={selectedRecordsForPrint.length === 0 ? colors.muted : colors.primaryDark}
+                    size={17}
+                    strokeWidth={2.4}
+                  />
+                  <Text
+                    style={[
+                      styles.printToolbarText,
+                      selectedRecordsForPrint.length === 0 && styles.disabledActionText,
+                    ]}
+                  >
+                  Reporte PDF seleccion ({selectedRecordsForPrint.length})
+                </Text>
+              </Pressable>
+              </>
+            ) : null}
+          </View>
+        ) : null}
+
         {recordsQuery.isLoading ? <Muted>Cargando historial...</Muted> : null}
         {recordsQuery.error ? <Muted>No se pudo cargar el historial medico.</Muted> : null}
         {!recordsQuery.isLoading && records.length === 0 ? (
@@ -565,8 +697,11 @@ export default function PetDetailScreen() {
             <RecordTimelineItem
               key={record.id}
               canEdit={user?.role === 'VET'}
+              isPrintSelected={selectedRecordIdsForPrint.includes(record.id)}
+              isSelecting={isSelectingRecords}
               isSelected={selectedRecordId === record.id}
               onEdit={openEditRecordForm}
+              onTogglePrintSelection={toggleRecordPrintSelection}
               onView={openRecordDetail}
               record={record}
             />
@@ -770,21 +905,33 @@ function RecordSummaryCard({
 
 function RecordTimelineItem({
   canEdit,
+  isPrintSelected,
+  isSelecting,
   isSelected,
   onEdit,
+  onTogglePrintSelection,
   onView,
   record,
 }: {
   canEdit: boolean;
+  isPrintSelected: boolean;
+  isSelecting: boolean;
   isSelected: boolean;
   onEdit: (record: MedicalRecord) => void;
+  onTogglePrintSelection: (recordId: string) => void;
   onView: (record: MedicalRecord) => void;
   record: MedicalRecord;
 }) {
   const tone = recordToneForType(record.type);
 
   return (
-    <View style={[styles.timelineItem, isSelected && styles.timelineItemSelected]}>
+    <View
+      style={[
+        styles.timelineItem,
+        isSelected && styles.timelineItemSelected,
+        isPrintSelected && styles.timelineItemPrintSelected,
+      ]}
+    >
       <View style={[styles.recordIconCircle, { backgroundColor: tone.background }]}>
         <RecordTypeIcon color={tone.color} type={record.type} />
       </View>
@@ -807,6 +954,29 @@ function RecordTimelineItem({
           </View>
         ) : null}
         <View style={styles.recordActionRow}>
+          {isSelecting ? (
+            <Pressable
+              onPress={() => onTogglePrintSelection(record.id)}
+              style={[
+                styles.recordActionButton,
+                isPrintSelected && styles.recordActionButtonActive,
+              ]}
+            >
+              <ListChecks
+                color={isPrintSelected ? '#ffffff' : colors.primaryDark}
+                size={16}
+                strokeWidth={2.4}
+              />
+              <Text
+                style={[
+                  styles.recordActionText,
+                  isPrintSelected && styles.recordActionTextActive,
+                ]}
+              >
+                {isPrintSelected ? 'Seleccionado' : 'Seleccionar'}
+              </Text>
+            </Pressable>
+          ) : null}
           <Pressable onPress={() => onView(record)} style={styles.recordActionButton}>
             <Eye color={colors.primaryDark} size={16} strokeWidth={2.4} />
             <Text style={styles.recordActionText}>Ver detalle</Text>
@@ -837,6 +1007,7 @@ function MedicalRecordDetailCard({
   record: MedicalRecord;
 }) {
   const tone = recordToneForType(record.type);
+  const canPrint = Platform.OS === 'web';
 
   return (
     <Card>
@@ -890,13 +1061,39 @@ function MedicalRecordDetailCard({
             <Text style={styles.detailActionText}>Editar</Text>
           </Pressable>
         ) : null}
-        <Pressable disabled style={[styles.detailActionButton, styles.disabledAction]}>
-          <Printer color={colors.muted} size={17} strokeWidth={2.4} />
-          <Text style={[styles.detailActionText, styles.disabledActionText]}>Imprimir</Text>
+        <Pressable
+          disabled={!canPrint}
+          onPress={() =>
+            openPrintableMedicalRecord({
+              mode: 'print',
+              ownerName,
+              petName,
+              record,
+            })
+          }
+          style={[styles.detailActionButton, !canPrint && styles.disabledAction]}
+        >
+          <Printer color={canPrint ? colors.primaryDark : colors.muted} size={17} strokeWidth={2.4} />
+          <Text style={[styles.detailActionText, !canPrint && styles.disabledActionText]}>
+            Imprimir
+          </Text>
         </Pressable>
-        <Pressable disabled style={[styles.detailActionButton, styles.disabledAction]}>
-          <FileDown color={colors.muted} size={17} strokeWidth={2.4} />
-          <Text style={[styles.detailActionText, styles.disabledActionText]}>PDF</Text>
+        <Pressable
+          disabled={!canPrint}
+          onPress={() =>
+            openPrintableMedicalRecord({
+              mode: 'pdf',
+              ownerName,
+              petName,
+              record,
+            })
+          }
+          style={[styles.detailActionButton, !canPrint && styles.disabledAction]}
+        >
+          <FileDown color={canPrint ? colors.primaryDark : colors.muted} size={17} strokeWidth={2.4} />
+          <Text style={[styles.detailActionText, !canPrint && styles.disabledActionText]}>
+            PDF
+          </Text>
         </Pressable>
         <Pressable disabled style={[styles.detailActionButton, styles.disabledAction]}>
           <Paperclip color={colors.muted} size={17} strokeWidth={2.4} />
@@ -931,6 +1128,610 @@ function DetailField({ label, value }: { label: string; value: string }) {
       <Text style={styles.detailFieldValue}>{value}</Text>
     </View>
   );
+}
+
+function openPrintableMedicalRecord({
+  mode,
+  ownerName,
+  petName,
+  record,
+}: {
+  mode: 'print' | 'pdf';
+  ownerName: string;
+  petName: string;
+  record: MedicalRecord;
+}) {
+  if (Platform.OS !== 'web' || typeof window === 'undefined') {
+    return;
+  }
+
+  openPrintableHtml(
+    buildMedicalRecordPrintHtml({
+      mode,
+      ownerName,
+      petName,
+      record,
+    }),
+  );
+}
+
+function openPrintableMedicalRecordCollection({
+  mode,
+  output,
+  ownerName,
+  petName,
+  records,
+}: {
+  mode: 'complete' | 'selected';
+  output: 'print' | 'pdf';
+  ownerName: string;
+  petName: string;
+  records: MedicalRecord[];
+}) {
+  if (Platform.OS !== 'web' || typeof window === 'undefined' || records.length === 0) {
+    return;
+  }
+
+  openPrintableHtml(
+    buildMedicalRecordCollectionPrintHtml({
+      mode,
+      output,
+      ownerName,
+      petName,
+      records,
+    }),
+  );
+}
+
+function openPrintableHtml(html: string) {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+  const url = window.URL.createObjectURL(blob);
+  const printableWindow = window.open(url, '_blank');
+
+  if (!printableWindow) {
+    window.URL.revokeObjectURL(url);
+    return;
+  }
+
+  window.setTimeout(() => {
+    window.URL.revokeObjectURL(url);
+  }, 30000);
+}
+
+function buildMedicalRecordPrintHtml({
+  mode,
+  ownerName,
+  petName,
+  record,
+}: {
+  mode: 'print' | 'pdf';
+  ownerName: string;
+  petName: string;
+  record: MedicalRecord;
+}) {
+  const printableTitle =
+    mode === 'pdf' ? 'Informe clinico - guardar como PDF' : 'Informe clinico imprimible';
+  const sections = [
+    ['Descripcion general', record.description],
+    ['Motivo de consulta', record.consultationReason],
+    ['Diagnostico', record.diagnosis],
+    ['Tratamiento indicado', record.treatment],
+    ['Medicacion', record.medication],
+    ['Indicaciones para propietario', record.ownerVisibleNotes],
+    ['Notas privadas veterinario/a', record.privateNotes],
+  ]
+    .filter(([, value]) => typeof value === 'string' && value.trim())
+    .map(
+      ([label, value]) => `
+        <section class="block">
+          <h2>${escapeHtml(String(label))}</h2>
+          <p>${formatPrintableText(String(value))}</p>
+        </section>
+      `,
+    )
+    .join('');
+
+  return `
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>${escapeHtml(printableTitle)} - ${escapeHtml(petName)}</title>
+    <style>
+      :root {
+        color: #10201b;
+        font-family: Arial, Helvetica, sans-serif;
+      }
+      body {
+        background: #ffffff;
+        margin: 0;
+        padding: 32px;
+      }
+      main {
+        margin: 0 auto;
+        max-width: 820px;
+      }
+      header {
+        border-bottom: 2px solid #087f5b;
+        margin-bottom: 22px;
+        padding-bottom: 18px;
+      }
+      .brand {
+        color: #06684a;
+        font-size: 13px;
+        font-weight: 800;
+        letter-spacing: 0;
+        margin: 0 0 6px;
+        text-transform: uppercase;
+      }
+      h1 {
+        font-size: 28px;
+        line-height: 1.18;
+        margin: 0 0 8px;
+      }
+      .subtitle {
+        color: #5c6f68;
+        font-size: 14px;
+        margin: 0;
+      }
+      .grid {
+        display: grid;
+        gap: 10px;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        margin-bottom: 18px;
+      }
+      .field {
+        background: #eef4f1;
+        border: 1px solid #d8e2df;
+        border-radius: 8px;
+        padding: 10px 12px;
+      }
+      .label {
+        color: #5c6f68;
+        display: block;
+        font-size: 11px;
+        font-weight: 800;
+        margin-bottom: 4px;
+        text-transform: uppercase;
+      }
+      .value {
+        font-size: 14px;
+        font-weight: 700;
+      }
+      .block {
+        border: 1px solid #d8e2df;
+        border-radius: 8px;
+        margin: 0 0 12px;
+        padding: 14px;
+      }
+      h2 {
+        color: #06684a;
+        font-size: 13px;
+        margin: 0 0 8px;
+        text-transform: uppercase;
+      }
+      p {
+        font-size: 15px;
+        line-height: 1.5;
+        margin: 0;
+        white-space: pre-wrap;
+      }
+      footer {
+        border-top: 1px solid #d8e2df;
+        color: #5c6f68;
+        font-size: 12px;
+        margin-top: 24px;
+        padding-top: 12px;
+      }
+      @media print {
+        body {
+          padding: 0;
+        }
+        main {
+          max-width: none;
+        }
+      }
+      @media (max-width: 640px) {
+        body {
+          padding: 18px;
+        }
+        .grid {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <p class="brand">choninovet</p>
+        <h1>${escapeHtml(record.title)}</h1>
+        <p class="subtitle">${escapeHtml(printableTitle)}</p>
+      </header>
+
+      <section class="grid">
+        ${printableField('Tipo', medicalRecordTypeLabel(record.type))}
+        ${printableField('Fecha', formatDateOnly(record.recordDate))}
+        ${printableField('Paciente', petName)}
+        ${printableField('Propietario', ownerName)}
+        ${printableField('Veterinario/a', record.vet?.clinicName ?? 'Sin dato')}
+        ${printableField('Proximo control', record.nextCheckAt ? formatDateOnly(record.nextCheckAt) : 'Sin fecha')}
+        ${printableField('Peso registrado', record.weightKg ? `${record.weightKg} kg` : 'Sin dato')}
+        ${printableField('Temperatura', record.temperatureC ? `${record.temperatureC} C` : 'Sin dato')}
+      </section>
+
+      ${sections}
+
+      <footer>
+        Generado desde choninovet el ${escapeHtml(todayDisplayDate())}.
+      </footer>
+    </main>
+    ${printableAutoPrintScript()}
+  </body>
+</html>`;
+}
+
+function buildMedicalRecordCollectionPrintHtml({
+  mode,
+  output,
+  ownerName,
+  petName,
+  records,
+}: {
+  mode: 'complete' | 'selected';
+  output: 'print' | 'pdf';
+  ownerName: string;
+  petName: string;
+  records: MedicalRecord[];
+}) {
+  const baseTitle =
+    mode === 'complete'
+      ? 'Historial clinico completo'
+      : 'Historial clinico seleccionado';
+  const printableTitle =
+    output === 'pdf' ? `${baseTitle} - guardar como PDF` : baseTitle;
+  const recordsHtml = records
+    .map(
+      (record, index) => `
+        <article class="clinical-entry">
+          <div class="record-heading">
+            <div>
+              <span class="record-number">Registro ${index + 1}</span>
+              <h2>${escapeHtml(record.title)}</h2>
+            </div>
+            <div class="record-meta">
+              <span>${escapeHtml(medicalRecordTypeLabel(record.type))}</span>
+              <span>${escapeHtml(formatDateOnly(record.recordDate))}</span>
+            </div>
+          </div>
+          <section class="record-facts">
+            ${printableInlineFact('Veterinario/a', record.vet?.clinicName ?? 'Sin dato')}
+            ${printableInlineFact('Proximo control', record.nextCheckAt ? formatDateOnly(record.nextCheckAt) : 'Sin fecha')}
+            ${printableInlineFact('Peso', record.weightKg ? `${record.weightKg} kg` : 'Sin dato')}
+            ${printableInlineFact('Temperatura', record.temperatureC ? `${record.temperatureC} C` : 'Sin dato')}
+          </section>
+          ${printableRecordSections(record, 'compact')}
+        </article>
+      `,
+    )
+    .join('');
+
+  return `
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>${escapeHtml(printableTitle)} - ${escapeHtml(petName)}</title>
+    ${printableDocumentStyles('compact')}
+    <style>
+      .patient-summary {
+        border: 1px solid #b9c9c4;
+        border-collapse: collapse;
+        margin: 0 0 16px;
+        width: 100%;
+      }
+      .patient-summary td {
+        border: 1px solid #b9c9c4;
+        font-size: 12px;
+        padding: 6px 8px;
+        vertical-align: top;
+        width: 33.33%;
+      }
+      .patient-summary strong {
+        color: #466058;
+        display: block;
+        font-size: 9px;
+        margin-bottom: 2px;
+        text-transform: uppercase;
+      }
+      .clinical-entry {
+        border-top: 1px solid #9eb4ad;
+        margin: 0;
+        padding: 10px 0 8px;
+      }
+      .clinical-entry:first-of-type {
+        border-top: 2px solid #087f5b;
+      }
+      .record-heading {
+        align-items: center;
+        display: flex;
+        gap: 8px;
+        justify-content: space-between;
+        margin-bottom: 5px;
+      }
+      .record-number {
+        color: #06684a;
+        display: block;
+        font-size: 9px;
+        font-weight: 800;
+        margin-bottom: 2px;
+        text-transform: uppercase;
+      }
+      .record-meta {
+        color: #466058;
+        display: flex;
+        flex-direction: column;
+        font-size: 11px;
+        font-weight: 700;
+        gap: 2px;
+        text-align: right;
+        white-space: nowrap;
+      }
+      .record-facts {
+        color: #3c4f49;
+        display: flex;
+        flex-wrap: wrap;
+        font-size: 11px;
+        gap: 4px 12px;
+        margin: 0 0 5px;
+      }
+      .inline-fact strong {
+        color: #5c6f68;
+        font-weight: 800;
+      }
+      .compact-line {
+        font-size: 12px;
+        line-height: 1.35;
+        margin: 3px 0;
+      }
+      .compact-line strong {
+        color: #06684a;
+        font-size: 10px;
+        text-transform: uppercase;
+      }
+      @media print {
+        .clinical-entry {
+          break-inside: auto;
+          page-break-inside: auto;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <p class="brand">choninovet</p>
+        <h1>${escapeHtml(printableTitle)}</h1>
+        <p class="subtitle">${escapeHtml(records.length === 1 ? '1 registro medico' : `${records.length} registros medicos`)}</p>
+      </header>
+
+      <table class="patient-summary">
+        <tr>
+          <td><strong>Paciente</strong>${escapeHtml(petName)}</td>
+          <td><strong>Propietario</strong>${escapeHtml(ownerName)}</td>
+          <td><strong>Fecha de emision</strong>${escapeHtml(todayDisplayDate())}</td>
+        </tr>
+      </table>
+
+      ${recordsHtml}
+
+      <footer>
+        Generado desde choninovet el ${escapeHtml(todayDisplayDate())}.
+      </footer>
+    </main>
+    ${printableAutoPrintScript()}
+  </body>
+</html>`;
+}
+
+function printableField(label: string, value: string) {
+  return `
+    <div class="field">
+      <span class="label">${escapeHtml(label)}</span>
+      <span class="value">${escapeHtml(value)}</span>
+    </div>
+  `;
+}
+
+function printableInlineFact(label: string, value: string) {
+  return `
+    <span class="inline-fact"><strong>${escapeHtml(label)}:</strong> ${escapeHtml(value)}</span>
+  `;
+}
+
+function printableRecordSections(record: MedicalRecord, variant: 'block' | 'compact' = 'block') {
+  const sections = [
+    ['Descripcion general', record.description],
+    ['Motivo de consulta', record.consultationReason],
+    ['Diagnostico', record.diagnosis],
+    ['Tratamiento indicado', record.treatment],
+    ['Medicacion', record.medication],
+    ['Indicaciones para propietario', record.ownerVisibleNotes],
+    ['Notas privadas veterinario/a', record.privateNotes],
+  ]
+    .filter(([, value]) => typeof value === 'string' && value.trim());
+
+  if (variant === 'compact') {
+    return sections
+      .map(
+        ([label, value]) => `
+          <p class="compact-line"><strong>${escapeHtml(String(label))}:</strong> ${formatPrintableText(String(value))}</p>
+        `,
+      )
+      .join('');
+  }
+
+  return sections
+    .map(
+      ([label, value]) => `
+        <section class="block">
+          <h3>${escapeHtml(String(label))}</h3>
+          <p>${formatPrintableText(String(value))}</p>
+        </section>
+      `,
+    )
+    .join('');
+}
+
+function printableDocumentStyles(variant: 'normal' | 'compact' = 'normal') {
+  const isCompact = variant === 'compact';
+
+  return `
+    <style>
+      :root {
+        color: #10201b;
+        font-family: Arial, Helvetica, sans-serif;
+      }
+      body {
+        background: #ffffff;
+        margin: 0;
+        padding: ${isCompact ? '18px 24px' : '32px'};
+      }
+      main {
+        margin: 0 auto;
+        max-width: ${isCompact ? '920px' : '820px'};
+      }
+      header {
+        border-bottom: 2px solid #087f5b;
+        margin-bottom: ${isCompact ? '12px' : '22px'};
+        padding-bottom: ${isCompact ? '10px' : '18px'};
+      }
+      .brand {
+        color: #06684a;
+        font-size: ${isCompact ? '11px' : '13px'};
+        font-weight: 800;
+        letter-spacing: 0;
+        margin: 0 0 6px;
+        text-transform: uppercase;
+      }
+      h1 {
+        font-size: ${isCompact ? '22px' : '28px'};
+        line-height: 1.18;
+        margin: 0 0 ${isCompact ? '4px' : '8px'};
+      }
+      h2 {
+        color: #10201b;
+        font-size: ${isCompact ? '15px' : '21px'};
+        line-height: 1.25;
+        margin: 0 0 ${isCompact ? '4px' : '12px'};
+      }
+      h3 {
+        color: #06684a;
+        font-size: 13px;
+        margin: 0 0 8px;
+        text-transform: uppercase;
+      }
+      .subtitle {
+        color: #5c6f68;
+        font-size: ${isCompact ? '12px' : '14px'};
+        margin: 0;
+      }
+      .grid {
+        display: grid;
+        gap: 10px;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        margin-bottom: 18px;
+      }
+      .field {
+        background: #eef4f1;
+        border: 1px solid #d8e2df;
+        border-radius: 8px;
+        padding: 10px 12px;
+      }
+      .label {
+        color: #5c6f68;
+        display: block;
+        font-size: 11px;
+        font-weight: 800;
+        margin-bottom: 4px;
+        text-transform: uppercase;
+      }
+      .value {
+        font-size: 14px;
+        font-weight: 700;
+      }
+      .block {
+        border: 1px solid #d8e2df;
+        border-radius: 8px;
+        margin: 0 0 12px;
+        padding: 14px;
+      }
+      p {
+        font-size: ${isCompact ? '12px' : '15px'};
+        line-height: ${isCompact ? '1.35' : '1.5'};
+        margin: 0;
+        white-space: pre-wrap;
+      }
+      footer {
+        border-top: 1px solid #d8e2df;
+        color: #5c6f68;
+        font-size: 11px;
+        margin-top: ${isCompact ? '12px' : '24px'};
+        padding-top: ${isCompact ? '8px' : '12px'};
+      }
+      @media print {
+        @page {
+          margin: ${isCompact ? '12mm' : '16mm'};
+        }
+        body {
+          padding: 0;
+        }
+        main {
+          max-width: none;
+        }
+      }
+      @media (max-width: 640px) {
+        body {
+          padding: 18px;
+        }
+        .grid {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  `;
+}
+
+function printableAutoPrintScript() {
+  return `
+    <script>
+      window.addEventListener('load', function () {
+        window.setTimeout(function () {
+          window.focus();
+          window.print();
+        }, 350);
+      });
+    </script>
+  `;
+}
+
+function formatPrintableText(value: string) {
+  return escapeHtml(value).replace(/\n/g, '<br />');
+}
+
+function escapeHtml(value: string) {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
 }
 
 function summaryToneStyle(tone: 'primary' | 'neutral' | 'warning') {
@@ -1120,6 +1921,28 @@ const styles = StyleSheet.create({
   filterTextActive: {
     color: '#ffffff',
   },
+  printToolbar: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.xs,
+  },
+  printToolbarButton: {
+    alignItems: 'center',
+    backgroundColor: colors.surfaceAlt,
+    borderColor: colors.border,
+    borderRadius: 8,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: spacing.xs,
+    minHeight: 42,
+    justifyContent: 'center',
+    paddingHorizontal: spacing.sm,
+  },
+  printToolbarText: {
+    color: colors.primaryDark,
+    fontSize: 13,
+    fontWeight: '900',
+  },
   timeline: {
     gap: spacing.sm,
   },
@@ -1136,6 +1959,9 @@ const styles = StyleSheet.create({
   timelineItemSelected: {
     borderColor: colors.primary,
     borderWidth: 2,
+  },
+  timelineItemPrintSelected: {
+    backgroundColor: '#e8f7ef',
   },
   recordIconCircle: {
     alignItems: 'center',
@@ -1195,10 +2021,17 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: spacing.sm,
   },
+  recordActionButtonActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
   recordActionText: {
     color: colors.primaryDark,
     fontSize: 13,
     fontWeight: '900',
+  },
+  recordActionTextActive: {
+    color: '#ffffff',
   },
   detailHeader: {
     alignItems: 'flex-start',

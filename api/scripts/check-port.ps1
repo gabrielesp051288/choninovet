@@ -3,7 +3,7 @@ param(
   [int]$Port
 )
 
-$connections = Get-NetTCPConnection -LocalPort $Port -ErrorAction SilentlyContinue
+$connections = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue
 
 if (-not $connections) {
   Write-Host "Port $Port is free."
