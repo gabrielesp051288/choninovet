@@ -1059,7 +1059,7 @@ function ExtensionsSection({
     setError(null);
 
     try {
-      const manifest = JSON.parse(manifestText) as Record<string, unknown>;
+      const manifest = parseExtensionManifestJson(manifestText);
       await onRegister(manifest);
       setManifestText('');
       setMessage('Extension registrada. Quedo desactivada por defecto.');
@@ -2144,7 +2144,7 @@ function pickJsonManifestFromBrowser(): Promise<Record<string, unknown> | null> 
           return;
         }
 
-        resolve(JSON.parse(await file.text()) as Record<string, unknown>);
+        resolve(parseExtensionManifestJson(await file.text()));
       } catch (error) {
         reject(error instanceof Error ? error : new Error('No se pudo leer el JSON.'));
       }
@@ -2158,6 +2158,26 @@ function pickJsonManifestFromBrowser(): Promise<Record<string, unknown> | null> 
     document.body.appendChild(input);
     input.click();
   });
+}
+
+function parseExtensionManifestJson(value: string): Record<string, unknown> {
+  try {
+    const manifest = JSON.parse(value) as unknown;
+
+    if (!manifest || typeof manifest !== 'object' || Array.isArray(manifest)) {
+      throw new Error('El JSON debe ser un objeto de extension.');
+    }
+
+    return manifest as Record<string, unknown>;
+  } catch (error) {
+    if (error instanceof SyntaxError) {
+      throw new Error('JSON invalido. Revisa comillas, llaves, comas y formato.');
+    }
+
+    throw error instanceof Error
+      ? error
+      : new Error('JSON invalido. No se pudo leer el manifiesto.');
+  }
 }
 
 function extensionStatusLabel(status: ExtensionStatus) {

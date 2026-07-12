@@ -641,14 +641,38 @@ export class AdminService {
       throw new BadRequestException('Manifiesto de extension invalido');
     }
 
-    if (!manifest.key || !/^[a-z0-9][a-z0-9-]{2,63}$/.test(manifest.key)) {
+    if (
+      typeof manifest.key !== 'string' ||
+      !/^[a-z0-9][a-z0-9-]{2,63}$/.test(manifest.key)
+    ) {
       throw new BadRequestException(
         'La extension necesita key valida: minusculas, numeros y guiones, 3 a 64 caracteres',
       );
     }
 
-    if (!manifest.name?.trim() || !manifest.description?.trim()) {
+    if (
+      typeof manifest.name !== 'string' ||
+      !manifest.name.trim() ||
+      typeof manifest.description !== 'string' ||
+      !manifest.description.trim()
+    ) {
       throw new BadRequestException('La extension necesita name y description');
+    }
+
+    if (manifest.version !== undefined && typeof manifest.version !== 'string') {
+      throw new BadRequestException('La extension necesita version como texto');
+    }
+
+    if (manifest.category !== undefined && typeof manifest.category !== 'string') {
+      throw new BadRequestException('La extension necesita category como texto');
+    }
+
+    if (manifest.requiresExternalService !== undefined && typeof manifest.requiresExternalService !== 'boolean') {
+      throw new BadRequestException('requiresExternalService debe ser true o false');
+    }
+
+    if (typeof manifest.adapter !== 'string') {
+      throw new BadRequestException('La extension necesita adapter valido');
     }
 
     const supportedExtension = supportedDemandExtensions.find(
