@@ -39,6 +39,15 @@ enum MedicalRecordType {
   OBSERVATION
 }
 
+enum MedicalAttachmentType {
+  IMAGE
+  PDF
+  LAB_RESULT
+  RADIOGRAPHY
+  STUDY
+  OTHER
+}
+
 enum AppointmentStatus {
   REQUESTED
   CONFIRMED
@@ -78,6 +87,7 @@ model User {
   vetProfile   VetProfile?
   sentMessages Message[]     @relation("SentMessages")
   auditLogs    AuditLog[]    @relation("AuditActor")
+  medicalAttachments MedicalAttachment[]
 
   @@map("users")
 }
@@ -132,6 +142,7 @@ model Pet {
   owner          OwnerProfile    @relation(fields: [ownerProfileId], references: [id], onDelete: Cascade)
   vets           PetVet[]
   records        MedicalRecord[]
+  medicalAttachments MedicalAttachment[]
   appointments   Appointment[]
   reminders      Reminder[]
   conversations  Conversation[]
@@ -174,10 +185,32 @@ model MedicalRecord {
   updatedAt    DateTime          @updatedAt
   pet          Pet               @relation(fields: [petId], references: [id], onDelete: Cascade)
   vet          VetProfile        @relation(fields: [vetProfileId], references: [id], onDelete: Cascade)
+  attachments  MedicalAttachment[]
 
   @@index([petId])
   @@index([vetProfileId])
   @@map("medical_records")
+}
+
+model MedicalAttachment {
+  id              String                @id @default(cuid())
+  petId           String
+  medicalRecordId String?
+  uploadedByUserId String
+  type            MedicalAttachmentType
+  originalName    String
+  storedFileName  String                @unique
+  mimeType        String
+  sizeBytes       Int
+  createdAt       DateTime              @default(now())
+  pet             Pet                   @relation(fields: [petId], references: [id], onDelete: Cascade)
+  medicalRecord   MedicalRecord?        @relation(fields: [medicalRecordId], references: [id], onDelete: SetNull)
+  uploadedBy      User                  @relation(fields: [uploadedByUserId], references: [id], onDelete: Cascade)
+
+  @@index([petId])
+  @@index([medicalRecordId])
+  @@index([uploadedByUserId])
+  @@map("medical_attachments")
 }
 
 model Appointment {

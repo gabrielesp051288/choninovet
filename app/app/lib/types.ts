@@ -63,6 +63,31 @@ export type MedicalRecord = {
   vet?: VetProfile;
 };
 
+export type MedicalAttachmentType =
+  | 'IMAGE'
+  | 'PDF'
+  | 'LAB_RESULT'
+  | 'RADIOGRAPHY'
+  | 'STUDY'
+  | 'OTHER';
+
+export type MedicalAttachment = {
+  id: string;
+  petId: string;
+  medicalRecordId?: string | null;
+  type: MedicalAttachmentType;
+  originalName: string;
+  mimeType: string;
+  sizeBytes: number;
+  createdAt: string;
+  medicalRecord?: {
+    id: string;
+    title: string;
+    recordDate: string;
+    type: MedicalRecordType;
+  } | null;
+};
+
 export type ReminderType = 'VACCINE' | 'CHECKUP' | 'APPOINTMENT' | 'TREATMENT' | 'OTHER';
 export type ReminderStatus = 'PENDING' | 'COMPLETED';
 

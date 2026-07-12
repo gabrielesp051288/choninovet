@@ -1,4 +1,5 @@
 import * as ImagePicker from 'expo-image-picker';
+import * as DocumentPicker from 'expo-document-picker';
 import { useLocalSearchParams } from 'expo-router';
 import {
   CalendarDays,
@@ -20,6 +21,11 @@ import { Image, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'r
 import { ActionLink, Badge, Card, Muted, Screen, SectionTitle } from '../components';
 import { CalendarDatePicker } from '../date-picker';
 import {
+  useDownloadMedicalAttachment,
+  useMedicalAttachments,
+  useUploadMedicalAttachment,
+} from '../hooks/use-medical-attachments';
+import {
   useCreateMedicalRecord,
   useMedicalRecords,
   useUpdateMedicalRecord,
@@ -30,7 +36,12 @@ import { buildApiAssetUrl } from '../lib/api';
 import { useRequireRole } from '../lib/auth-routing';
 import { formatDateOnly, parseDisplayDateToIso, todayDisplayDate } from '../lib/dates';
 import { medicalRecordTypeLabel, petSexLabel } from '../lib/labels';
-import type { MedicalRecord, PetSex } from '../lib/types';
+import type {
+  MedicalAttachment,
+  MedicalAttachmentType,
+  MedicalRecord,
+  PetSex,
+} from '../lib/types';
 import { useAuthStore } from '../stores/auth-store';
 import { colors, spacing } from '../theme';
 
@@ -48,14 +59,26 @@ const sexOptions: Array<{ label: string; value: PetSex }> = [
   { label: 'Sin dato', value: 'UNKNOWN' },
 ];
 
+const attachmentTypes: Array<{ label: string; value: MedicalAttachmentType }> = [
+  { label: 'Imagen', value: 'IMAGE' },
+  { label: 'PDF', value: 'PDF' },
+  { label: 'Analisis', value: 'LAB_RESULT' },
+  { label: 'Radiografia', value: 'RADIOGRAPHY' },
+  { label: 'Estudio', value: 'STUDY' },
+  { label: 'Otro', value: 'OTHER' },
+];
+
 export default function PetDetailScreen() {
   const { isAllowed } = useRequireRole(['OWNER', 'VET', 'ADMIN']);
   const user = useAuthStore((state) => state.user);
   const { id } = useLocalSearchParams<{ id: string }>();
   const petQuery = usePet(id);
   const recordsQuery = useMedicalRecords(id);
+  const attachmentsQuery = useMedicalAttachments(id);
   const createRecord = useCreateMedicalRecord(id);
   const updateRecord = useUpdateMedicalRecord(id);
+  const uploadAttachment = useUploadMedicalAttachment(id);
+  const downloadAttachment = useDownloadMedicalAttachment();
   const updatePet = useUpdatePet();
   const uploadPetPhoto = useUploadPetPhoto();
   const pet = petQuery.data;
@@ -72,6 +95,8 @@ export default function PetDetailScreen() {
   const [temperatureC, setTemperatureC] = useState('');
   const [ownerVisibleNotes, setOwnerVisibleNotes] = useState('');
   const [privateNotes, setPrivateNotes] = useState('');
+  const [attachmentType, setAttachmentType] = useState<MedicalAttachmentType>('STUDY');
+  const [attachmentError, setAttachmentError] = useState<string | null>(null);
   const [nextCheckAt, setNextCheckAt] = useState('');
   const [recordFilter, setRecordFilter] = useState<MedicalRecordType | 'ALL'>('ALL');
   const [isRecordFormOpen, setIsRecordFormOpen] = useState(false);
@@ -392,6 +417,56 @@ export default function PetDetailScreen() {
     });
 
     setEditSuccess('Foto de mascota actualizada correctamente.');
+  }
+
+  async function handlePickAttachment() {
+    if (!id) {
+      return;
+    }
+
+    setAttachmentError(null);
+
+    const result = await DocumentPicker.getDocumentAsync({
+      copyToCacheDirectory: true,
+      multiple: false,
+      type: ['application/pdf', 'image/*'],
+    });
+
+    if (result.canceled || !result.assets[0]) {
+      return;
+    }
+
+    const asset = result.assets[0];
+    const mimeType = asset.mimeType ?? 'application/octet-stream';
+    const name = asset.name ?? `adjunto-${Date.now()}`;
+
+    try {
+      await uploadAttachment.mutateAsync({
+        petId: id,
+        medicalRecordId: selectedRecord?.id,
+        type: attachmentType,
+        uri: asset.uri,
+        name,
+        mimeType,
+        file: asset.file,
+      });
+    } catch (error) {
+      setAttachmentError(
+        error instanceof Error ? error.message : 'No se pudo subir el adjunto.',
+      );
+    }
+  }
+
+  async function handleDownloadAttachment(attachment: MedicalAttachment) {
+    setAttachmentError(null);
+
+    try {
+      await downloadAttachment.mutateAsync(attachment);
+    } catch (error) {
+      setAttachmentError(
+        error instanceof Error ? error.message : 'No se pudo descargar el adjunto.',
+      );
+    }
   }
 
   if (!isAllowed) {
@@ -716,6 +791,21 @@ export default function PetDetailScreen() {
           ownerName={pet.owner ? `${pet.owner.firstName} ${pet.owner.lastName}` : 'Sin propietario'}
         />
       ) : null}
+
+      <MedicalAttachmentsCard
+        attachments={attachmentsQuery.data ?? []}
+        attachmentType={attachmentType}
+        canUpload={user?.role === 'VET' || user?.role === 'ADMIN'}
+        downloadError={downloadAttachment.error}
+        isDownloading={downloadAttachment.isPending}
+        isLoading={attachmentsQuery.isLoading}
+        isUploading={uploadAttachment.isPending}
+        onDownload={handleDownloadAttachment}
+        onPickAttachment={handlePickAttachment}
+        onTypeChange={setAttachmentType}
+        selectedRecord={selectedRecord}
+        uploadError={attachmentError ?? (uploadAttachment.error instanceof Error ? uploadAttachment.error.message : null)}
+      />
 
       {user?.role === 'VET' && !isRecordFormOpen ? (
         <Pressable onPress={openCreateRecordForm} style={styles.createRecordCard}>
@@ -1092,9 +1182,9 @@ function MedicalRecordDetailCard({
             PDF
           </Text>
         </Pressable>
-        <Pressable disabled style={[styles.detailActionButton, styles.disabledAction]}>
-          <Paperclip color={colors.muted} size={17} strokeWidth={2.4} />
-          <Text style={[styles.detailActionText, styles.disabledActionText]}>Adjuntos</Text>
+        <Pressable style={styles.detailActionButton}>
+          <Paperclip color={colors.primaryDark} size={17} strokeWidth={2.4} />
+          <Text style={styles.detailActionText}>Adjuntos</Text>
         </Pressable>
         <Pressable disabled style={[styles.detailActionButton, styles.disabledAction]}>
           <FileText color={colors.muted} size={17} strokeWidth={2.4} />
@@ -1115,6 +1205,120 @@ function DetailTextBlock({ label, value }: { label: string; value?: string | nul
       <Text style={styles.detailSectionLabel}>{label}</Text>
       <Text style={styles.detailDescription}>{value}</Text>
     </View>
+  );
+}
+
+function MedicalAttachmentsCard({
+  attachments,
+  attachmentType,
+  canUpload,
+  downloadError,
+  isDownloading,
+  isLoading,
+  isUploading,
+  onDownload,
+  onPickAttachment,
+  onTypeChange,
+  selectedRecord,
+  uploadError,
+}: {
+  attachments: MedicalAttachment[];
+  attachmentType: MedicalAttachmentType;
+  canUpload: boolean;
+  downloadError: unknown;
+  isDownloading: boolean;
+  isLoading: boolean;
+  isUploading: boolean;
+  onDownload: (attachment: MedicalAttachment) => void;
+  onPickAttachment: () => void;
+  onTypeChange: (type: MedicalAttachmentType) => void;
+  selectedRecord: MedicalRecord | null;
+  uploadError?: string | null;
+}) {
+  const visibleAttachments = selectedRecord
+    ? attachments.filter((attachment) => attachment.medicalRecordId === selectedRecord.id)
+    : attachments;
+
+  return (
+    <Card>
+      <View style={styles.sectionHeaderRow}>
+        <View style={styles.sectionHeaderText}>
+          <SectionTitle>Adjuntos clinicos</SectionTitle>
+          <Muted>
+            {selectedRecord
+              ? `Adjuntos asociados a: ${selectedRecord.title}`
+              : 'Archivos asociados a la ficha clinica del paciente.'}
+          </Muted>
+        </View>
+        <Paperclip color={colors.primaryDark} size={24} strokeWidth={2.4} />
+      </View>
+
+      {canUpload ? (
+        <>
+          <View style={styles.attachmentTypeGrid}>
+            {attachmentTypes.map((option) => (
+              <Pressable
+                key={option.value}
+                onPress={() => onTypeChange(option.value)}
+                style={[
+                  styles.attachmentTypeButton,
+                  attachmentType === option.value && styles.attachmentTypeButtonActive,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.attachmentTypeText,
+                    attachmentType === option.value && styles.attachmentTypeTextActive,
+                  ]}
+                >
+                  {option.label}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+          <Pressable
+            disabled={isUploading}
+            onPress={onPickAttachment}
+            style={[styles.secondaryButton, isUploading && styles.buttonDisabled]}
+          >
+            <Text style={styles.secondaryButtonText}>
+              {isUploading ? 'Subiendo adjunto...' : 'Subir adjunto'}
+            </Text>
+          </Pressable>
+        </>
+      ) : null}
+
+      {uploadError ? <Text style={styles.error}>{uploadError}</Text> : null}
+      {downloadError instanceof Error ? <Text style={styles.error}>{downloadError.message}</Text> : null}
+      {isLoading ? <Muted>Cargando adjuntos...</Muted> : null}
+      {!isLoading && visibleAttachments.length === 0 ? (
+        <Muted>No hay adjuntos clinicos para esta vista.</Muted>
+      ) : null}
+
+      <View style={styles.attachmentsList}>
+        {visibleAttachments.map((attachment) => (
+          <View key={attachment.id} style={styles.attachmentRow}>
+            <View style={styles.attachmentIcon}>
+              <Paperclip color={colors.primaryDark} size={18} strokeWidth={2.4} />
+            </View>
+            <View style={styles.attachmentInfo}>
+              <Text style={styles.attachmentName}>{attachment.originalName}</Text>
+              <Muted>
+                {medicalAttachmentTypeLabel(attachment.type)} - {formatFileSize(attachment.sizeBytes)}
+                {attachment.medicalRecord?.title ? ` - ${attachment.medicalRecord.title}` : ''}
+              </Muted>
+            </View>
+            <Pressable
+              disabled={isDownloading}
+              onPress={() => onDownload(attachment)}
+              style={[styles.attachmentDownloadButton, isDownloading && styles.buttonDisabled]}
+            >
+              <FileDown color={colors.primaryDark} size={18} strokeWidth={2.4} />
+            </Pressable>
+          </View>
+        ))}
+      </View>
+    </Card>
   );
 }
 
@@ -2065,6 +2269,27 @@ function RecordTypeIcon({ color, type }: { color: string; type: MedicalRecordTyp
   return <Stethoscope color={color} size={21} strokeWidth={2.4} />;
 }
 
+function medicalAttachmentTypeLabel(type: MedicalAttachmentType) {
+  const labels: Record<MedicalAttachmentType, string> = {
+    IMAGE: 'Imagen',
+    PDF: 'PDF',
+    LAB_RESULT: 'Analisis',
+    RADIOGRAPHY: 'Radiografia',
+    STUDY: 'Estudio',
+    OTHER: 'Otro',
+  };
+
+  return labels[type] ?? type;
+}
+
+function formatFileSize(sizeBytes: number) {
+  if (sizeBytes < 1024 * 1024) {
+    return `${Math.max(1, Math.round(sizeBytes / 1024))} KB`;
+  }
+
+  return `${(sizeBytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
 function recordToneForType(type: MedicalRecordType) {
   if (type === 'VACCINE') {
     return { background: '#e8f7ef', color: colors.primaryDark };
@@ -2388,6 +2613,73 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontSize: 15,
     fontWeight: '900',
+  },
+  attachmentTypeGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.xs,
+  },
+  attachmentTypeButton: {
+    alignItems: 'center',
+    backgroundColor: colors.surfaceAlt,
+    borderColor: colors.border,
+    borderRadius: 999,
+    borderWidth: 1,
+    minHeight: 36,
+    justifyContent: 'center',
+    paddingHorizontal: spacing.sm,
+  },
+  attachmentTypeButtonActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  attachmentTypeText: {
+    color: colors.text,
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  attachmentTypeTextActive: {
+    color: '#ffffff',
+  },
+  attachmentsList: {
+    gap: spacing.sm,
+  },
+  attachmentRow: {
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderRadius: 8,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: spacing.sm,
+    padding: spacing.sm,
+  },
+  attachmentIcon: {
+    alignItems: 'center',
+    backgroundColor: colors.surfaceAlt,
+    borderRadius: 8,
+    height: 38,
+    justifyContent: 'center',
+    width: 38,
+  },
+  attachmentInfo: {
+    flex: 1,
+    gap: 2,
+  },
+  attachmentName: {
+    color: colors.text,
+    fontSize: 14,
+    fontWeight: '900',
+  },
+  attachmentDownloadButton: {
+    alignItems: 'center',
+    backgroundColor: colors.surfaceAlt,
+    borderColor: colors.border,
+    borderRadius: 8,
+    borderWidth: 1,
+    height: 42,
+    justifyContent: 'center',
+    width: 42,
   },
   detailDescriptionBox: {
     backgroundColor: colors.surface,

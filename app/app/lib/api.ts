@@ -91,6 +91,31 @@ export async function apiUploadRequest<T>(
   return payload as T;
 }
 
+export async function apiBlobRequest(
+  path: string,
+  { token }: Pick<RequestOptions, 'token'> = {},
+) {
+  const apiUrl = useApiConfigStore.getState().getApiUrl();
+  const response = await fetch(`${apiUrl}${path}`, {
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  });
+
+  if (!response.ok) {
+    const payload = await response.text();
+    const message = payload || `La solicitud fallo con estado ${response.status}`;
+
+    if (response.status === 401) {
+      unauthorizedHandler?.();
+    }
+
+    throw new ApiError(message, response.status);
+  }
+
+  return response.blob();
+}
+
 export function buildApiAssetUrl(path?: string | null) {
   if (!path) {
     return null;
