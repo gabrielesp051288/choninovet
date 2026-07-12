@@ -290,9 +290,8 @@ export default function PetDetailScreen() {
   }
 
   function pdfCompleteHistory() {
-    openPrintableMedicalRecordCollection({
+    downloadMedicalRecordCollectionPdf({
       mode: 'complete',
-      output: 'pdf',
       ownerName: pet?.owner ? `${pet.owner.firstName} ${pet.owner.lastName}` : 'Sin propietario',
       petName: pet?.name ?? 'Paciente',
       records,
@@ -310,9 +309,8 @@ export default function PetDetailScreen() {
   }
 
   function pdfSelectedHistory() {
-    openPrintableMedicalRecordCollection({
+    downloadMedicalRecordCollectionPdf({
       mode: 'selected',
-      output: 'pdf',
       ownerName: pet?.owner ? `${pet.owner.firstName} ${pet.owner.lastName}` : 'Sin propietario',
       petName: pet?.name ?? 'Paciente',
       records: selectedRecordsForPrint,
@@ -1081,8 +1079,7 @@ function MedicalRecordDetailCard({
         <Pressable
           disabled={!canPrint}
           onPress={() =>
-            openPrintableMedicalRecord({
-              mode: 'pdf',
+            downloadMedicalRecordPdf({
               ownerName,
               petName,
               record,
@@ -1128,6 +1125,312 @@ function DetailField({ label, value }: { label: string; value: string }) {
       <Text style={styles.detailFieldValue}>{value}</Text>
     </View>
   );
+}
+
+async function downloadMedicalRecordPdf({
+  ownerName,
+  petName,
+  record,
+}: {
+  ownerName: string;
+  petName: string;
+  record: MedicalRecord;
+}) {
+  if (Platform.OS !== 'web' || typeof window === 'undefined') {
+    return;
+  }
+
+  const pdf = await createMedicalRecordPdf({
+    title: 'Informe clinico',
+    ownerName,
+    petName,
+    records: [record],
+  });
+
+  downloadPdfBytes(pdf, `informe-${safeFileName(petName)}-${formatDateOnly(record.recordDate)}.pdf`);
+}
+
+async function downloadMedicalRecordCollectionPdf({
+  mode,
+  ownerName,
+  petName,
+  records,
+}: {
+  mode: 'complete' | 'selected';
+  ownerName: string;
+  petName: string;
+  records: MedicalRecord[];
+}) {
+  if (Platform.OS !== 'web' || typeof window === 'undefined' || records.length === 0) {
+    return;
+  }
+
+  const pdf = await createMedicalRecordPdf({
+    title: mode === 'complete' ? 'Historial clinico completo' : 'Historial clinico seleccionado',
+    ownerName,
+    petName,
+    records,
+  });
+
+  downloadPdfBytes(pdf, `historial-${safeFileName(petName)}-${mode}.pdf`);
+}
+
+function createMedicalRecordPdf({
+  ownerName,
+  petName,
+  records,
+  title,
+}: {
+  ownerName: string;
+  petName: string;
+  records: MedicalRecord[];
+  title: string;
+}) {
+  const renderer = createSimplePdfRenderer();
+
+  renderer.text('choninovet', 10, true);
+  renderer.text(title, 18, true);
+  renderer.text(
+    `${records.length === 1 ? '1 registro medico' : `${records.length} registros medicos`} - Emitido el ${todayDisplayDate()}`,
+    10,
+  );
+  renderer.rule();
+  renderer.text(`Paciente: ${petName}`, 11, true);
+  renderer.text(`Propietario: ${ownerName}`, 11, true);
+  renderer.space(8);
+
+  records.forEach((record, index) => {
+    renderer.ensureSpace(120);
+    renderer.text(
+      `Registro ${index + 1} - ${medicalRecordTypeLabel(record.type)} - ${formatDateOnly(record.recordDate)}`,
+      10,
+      true,
+    );
+    renderer.text(record.title, 13, true);
+    renderer.text(`Veterinario/a: ${record.vet?.clinicName ?? 'Sin dato'}`, 10);
+    renderer.text(
+      `Proximo control: ${record.nextCheckAt ? formatDateOnly(record.nextCheckAt) : 'Sin fecha'} | Peso: ${
+        record.weightKg ? `${record.weightKg} kg` : 'Sin dato'
+      } | Temperatura: ${record.temperatureC ? `${record.temperatureC} C` : 'Sin dato'}`,
+      10,
+    );
+    renderer.clinicalBlock('Descripcion general', record.description);
+    renderer.clinicalBlock('Motivo de consulta', record.consultationReason);
+    renderer.clinicalBlock('Diagnostico', record.diagnosis);
+    renderer.clinicalBlock('Tratamiento indicado', record.treatment);
+    renderer.clinicalBlock('Medicacion', record.medication);
+    renderer.clinicalBlock('Indicaciones para propietario', record.ownerVisibleNotes);
+    renderer.clinicalBlock('Notas privadas veterinario/a', record.privateNotes);
+    renderer.rule();
+  });
+
+  return renderer.bytes();
+}
+
+type SimplePdfRenderer = {
+  bytes: () => Uint8Array;
+  clinicalBlock: (label: string, value?: string | null) => void;
+  ensureSpace: (neededHeight: number) => void;
+  rule: () => void;
+  space: (amount: number) => void;
+  text: (value: string, size?: number, bold?: boolean) => void;
+};
+
+function createSimplePdfRenderer(): SimplePdfRenderer {
+  const width = 595.28;
+  const height = 841.89;
+  const margin = 42;
+  const pages: string[][] = [[]];
+  let y = 790;
+
+  function currentPage() {
+    return pages[pages.length - 1];
+  }
+
+  function addPage() {
+    pages.push([]);
+    y = 790;
+  }
+
+  function ensureSpace(neededHeight: number) {
+    if (y - neededHeight < margin) {
+      addPage();
+    }
+  }
+
+  function space(amount: number) {
+    y -= amount;
+  }
+
+  function text(value: string, size = 10, bold = false) {
+    const lines = wrapPdfText(safePdfTextAscii(value), size, 88);
+
+    lines.forEach((line) => {
+      ensureSpace(size + 5);
+      currentPage().push(
+        `BT /${bold ? 'F2' : 'F1'} ${size} Tf ${margin} ${y.toFixed(2)} Td (${escapePdfString(line)}) Tj ET`,
+      );
+      y -= size + 4;
+    });
+  }
+
+  function clinicalBlock(label: string, value?: string | null) {
+    if (!value?.trim()) {
+      return;
+    }
+
+    text(`${label}:`, 9, true);
+    text(value.trim(), 10);
+    space(3);
+  }
+
+  function rule() {
+    ensureSpace(12);
+    currentPage().push(`${margin} ${y.toFixed(2)} m ${(width - margin).toFixed(2)} ${y.toFixed(2)} l S`);
+    y -= 12;
+  }
+
+  function bytes() {
+    const objects: string[] = [];
+    const addObject = (body: string) => {
+      objects.push(body);
+      return objects.length;
+    };
+
+    const catalogId = addObject('<< /Type /Catalog /Pages 2 0 R >>');
+    const pagesId = addObject('');
+    const fontRegularId = addObject('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>');
+    const fontBoldId = addObject('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>');
+    const pageIds: number[] = [];
+
+    pages.forEach((commands) => {
+      const stream = commands.join('\n');
+      const contentId = addObject(`<< /Length ${byteLength(stream)} >>\nstream\n${stream}\nendstream`);
+      const pageId = addObject(
+        `<< /Type /Page /Parent ${pagesId} 0 R /MediaBox [0 0 ${width} ${height}] /Resources << /Font << /F1 ${fontRegularId} 0 R /F2 ${fontBoldId} 0 R >> >> /Contents ${contentId} 0 R >>`,
+      );
+      pageIds.push(pageId);
+    });
+
+    objects[pagesId - 1] = `<< /Type /Pages /Kids [${pageIds
+      .map((id) => `${id} 0 R`)
+      .join(' ')}] /Count ${pageIds.length} >>`;
+
+    const chunks = ['%PDF-1.4\n'];
+    const offsets: number[] = [0];
+    let offset = byteLength(chunks[0]);
+
+    objects.forEach((object, index) => {
+      offsets.push(offset);
+      const chunk = `${index + 1} 0 obj\n${object}\nendobj\n`;
+      chunks.push(chunk);
+      offset += byteLength(chunk);
+    });
+
+    const xrefOffset = offset;
+    const xref = [
+      `xref\n0 ${objects.length + 1}`,
+      '0000000000 65535 f ',
+      ...offsets.slice(1).map((item) => `${String(item).padStart(10, '0')} 00000 n `),
+    ].join('\n');
+    const trailer = `\ntrailer\n<< /Size ${objects.length + 1} /Root ${catalogId} 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`;
+
+    return new TextEncoder().encode(`${chunks.join('')}${xref}${trailer}`);
+  }
+
+  return {
+    bytes,
+    clinicalBlock,
+    ensureSpace,
+    rule,
+    space,
+    text,
+  };
+}
+
+function wrapPdfText(value: string, size: number, maxCharsAtTenPt: number) {
+  const maxChars = Math.max(34, Math.floor((maxCharsAtTenPt * 10) / size));
+
+  return value
+    .split('\n')
+    .flatMap((paragraph) => {
+      const words = paragraph.split(/\s+/).filter(Boolean);
+      const lines: string[] = [];
+      let currentLine = '';
+
+      words.forEach((word) => {
+        const candidate = currentLine ? `${currentLine} ${word}` : word;
+
+        if (candidate.length <= maxChars) {
+          currentLine = candidate;
+          return;
+        }
+
+        if (currentLine) {
+          lines.push(currentLine);
+        }
+        currentLine = word;
+      });
+
+      if (currentLine) {
+        lines.push(currentLine);
+      }
+
+      return lines.length > 0 ? lines : [''];
+    });
+}
+
+function downloadPdfBytes(bytes: Uint8Array, fileName: string) {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  const pdfBuffer = new ArrayBuffer(bytes.byteLength);
+  new Uint8Array(pdfBuffer).set(bytes);
+  const blob = new Blob([pdfBuffer], { type: 'application/pdf' });
+  const url = window.URL.createObjectURL(blob);
+  const link = window.document.createElement('a');
+  link.href = url;
+  link.download = fileName;
+  window.document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => window.URL.revokeObjectURL(url), 1000);
+}
+
+function safeFileName(value: string) {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9-_]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .toLowerCase();
+}
+
+function safePdfTextAscii(value: string) {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[“”]/g, '"')
+    .replace(/[‘’]/g, "'")
+    .replace(/[–—]/g, '-')
+    .replace(/[^\u0009\u000a\u000d\u0020-\u007e]/g, '');
+}
+
+function escapePdfString(value: string) {
+  return value.replace(/\\/g, '\\\\').replace(/\(/g, '\\(').replace(/\)/g, '\\)');
+}
+
+function byteLength(value: string) {
+  return new TextEncoder().encode(value).byteLength;
+}
+
+function safePdfText(value: string) {
+  return value
+    .replace(/[“”]/g, '"')
+    .replace(/[‘’]/g, "'")
+    .replace(/[–—]/g, '-')
+    .replace(/[^\u0009\u000a\u000d\u0020-\u00ff]/g, '');
 }
 
 function openPrintableMedicalRecord({
