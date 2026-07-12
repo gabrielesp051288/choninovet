@@ -63,6 +63,14 @@ export default function PetDetailScreen() {
   const [recordDate, setRecordDate] = useState(todayDisplayDate());
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
+  const [consultationReason, setConsultationReason] = useState('');
+  const [diagnosis, setDiagnosis] = useState('');
+  const [treatment, setTreatment] = useState('');
+  const [medication, setMedication] = useState('');
+  const [recordWeightKg, setRecordWeightKg] = useState('');
+  const [temperatureC, setTemperatureC] = useState('');
+  const [ownerVisibleNotes, setOwnerVisibleNotes] = useState('');
+  const [privateNotes, setPrivateNotes] = useState('');
   const [nextCheckAt, setNextCheckAt] = useState('');
   const [recordFilter, setRecordFilter] = useState<MedicalRecordType | 'ALL'>('ALL');
   const [isRecordFormOpen, setIsRecordFormOpen] = useState(false);
@@ -137,6 +145,29 @@ export default function PetDetailScreen() {
       return;
     }
 
+    const parsedRecordWeight = recordWeightKg.trim()
+      ? Number(recordWeightKg.replace(',', '.'))
+      : undefined;
+    const parsedTemperature = temperatureC.trim()
+      ? Number(temperatureC.replace(',', '.'))
+      : undefined;
+
+    if (
+      parsedRecordWeight !== undefined &&
+      (Number.isNaN(parsedRecordWeight) || parsedRecordWeight < 0)
+    ) {
+      setFormError('El peso registrado debe ser un numero valido.');
+      return;
+    }
+
+    if (
+      parsedTemperature !== undefined &&
+      (Number.isNaN(parsedTemperature) || parsedTemperature < 0)
+    ) {
+      setFormError('La temperatura debe ser un numero valido.');
+      return;
+    }
+
     if (editingRecordId) {
       await updateRecord.mutateAsync({
         recordId: editingRecordId,
@@ -144,6 +175,14 @@ export default function PetDetailScreen() {
         recordDate: parsedRecordDate,
         title: title.trim(),
         description: description.trim(),
+        consultationReason: textOrNull(consultationReason),
+        diagnosis: textOrNull(diagnosis),
+        treatment: textOrNull(treatment),
+        medication: textOrNull(medication),
+        weightKg: parsedRecordWeight ?? null,
+        temperatureC: parsedTemperature ?? null,
+        ownerVisibleNotes: textOrNull(ownerVisibleNotes),
+        privateNotes: textOrNull(privateNotes),
         nextCheckAt: parsedNextCheckAt ?? null,
       });
     } else {
@@ -153,6 +192,14 @@ export default function PetDetailScreen() {
         recordDate: parsedRecordDate,
         title: title.trim(),
         description: description.trim(),
+        consultationReason: textOrUndefined(consultationReason),
+        diagnosis: textOrUndefined(diagnosis),
+        treatment: textOrUndefined(treatment),
+        medication: textOrUndefined(medication),
+        weightKg: parsedRecordWeight,
+        temperatureC: parsedTemperature,
+        ownerVisibleNotes: textOrUndefined(ownerVisibleNotes),
+        privateNotes: textOrUndefined(privateNotes),
         nextCheckAt: parsedNextCheckAt ?? undefined,
       });
     }
@@ -165,6 +212,14 @@ export default function PetDetailScreen() {
     setRecordDate(todayDisplayDate());
     setTitle('');
     setDescription('');
+    setConsultationReason('');
+    setDiagnosis('');
+    setTreatment('');
+    setMedication('');
+    setRecordWeightKg('');
+    setTemperatureC('');
+    setOwnerVisibleNotes('');
+    setPrivateNotes('');
     setNextCheckAt('');
     setEditingRecordId(null);
     setFormError(null);
@@ -181,6 +236,14 @@ export default function PetDetailScreen() {
     setRecordDate(formatDateOnly(record.recordDate));
     setTitle(record.title);
     setDescription(record.description);
+    setConsultationReason(record.consultationReason ?? '');
+    setDiagnosis(record.diagnosis ?? '');
+    setTreatment(record.treatment ?? '');
+    setMedication(record.medication ?? '');
+    setRecordWeightKg(record.weightKg ? String(record.weightKg) : '');
+    setTemperatureC(record.temperatureC ? String(record.temperatureC) : '');
+    setOwnerVisibleNotes(record.ownerVisibleNotes ?? '');
+    setPrivateNotes(record.privateNotes ?? '');
     setNextCheckAt(record.nextCheckAt ? formatDateOnly(record.nextCheckAt) : '');
     setEditingRecordId(record.id);
     setFormError(null);
@@ -573,9 +636,67 @@ export default function PetDetailScreen() {
             <TextInput
               multiline
               onChangeText={setDescription}
-              placeholder="Descripcion"
+              placeholder="Descripcion general"
               style={[styles.input, styles.textArea]}
               value={description}
+            />
+            <TextInput
+              multiline
+              onChangeText={setConsultationReason}
+              placeholder="Motivo de consulta opcional"
+              style={[styles.input, styles.textAreaSmall]}
+              value={consultationReason}
+            />
+            <TextInput
+              multiline
+              onChangeText={setDiagnosis}
+              placeholder="Diagnostico opcional"
+              style={[styles.input, styles.textAreaSmall]}
+              value={diagnosis}
+            />
+            <TextInput
+              multiline
+              onChangeText={setTreatment}
+              placeholder="Tratamiento indicado opcional"
+              style={[styles.input, styles.textAreaSmall]}
+              value={treatment}
+            />
+            <TextInput
+              multiline
+              onChangeText={setMedication}
+              placeholder="Medicacion opcional"
+              style={[styles.input, styles.textAreaSmall]}
+              value={medication}
+            />
+            <View style={styles.twoColumnFields}>
+              <TextInput
+                keyboardType="decimal-pad"
+                onChangeText={setRecordWeightKg}
+                placeholder="Peso kg opcional"
+                style={[styles.input, styles.compactInput]}
+                value={recordWeightKg}
+              />
+              <TextInput
+                keyboardType="decimal-pad"
+                onChangeText={setTemperatureC}
+                placeholder="Temperatura C opcional"
+                style={[styles.input, styles.compactInput]}
+                value={temperatureC}
+              />
+            </View>
+            <TextInput
+              multiline
+              onChangeText={setOwnerVisibleNotes}
+              placeholder="Indicaciones visibles para propietario opcionales"
+              style={[styles.input, styles.textAreaSmall]}
+              value={ownerVisibleNotes}
+            />
+            <TextInput
+              multiline
+              onChangeText={setPrivateNotes}
+              placeholder="Notas privadas del veterinario/a opcionales"
+              style={[styles.input, styles.textAreaSmall]}
+              value={privateNotes}
             />
             <CalendarDatePicker
               label="Proximo control"
@@ -738,15 +859,29 @@ function MedicalRecordDetailCard({
         <DetailField label="Propietario" value={ownerName} />
         <DetailField label="Veterinario/a" value={record.vet?.clinicName ?? 'Sin dato'} />
         <DetailField
+          label="Peso registrado"
+          value={record.weightKg ? `${record.weightKg} kg` : 'Sin dato'}
+        />
+        <DetailField
+          label="Temperatura"
+          value={record.temperatureC ? `${record.temperatureC} C` : 'Sin dato'}
+        />
+        <DetailField
           label="Proximo control"
           value={record.nextCheckAt ? formatDateOnly(record.nextCheckAt) : 'Sin fecha'}
         />
       </View>
 
-      <View style={styles.detailDescriptionBox}>
-        <Text style={styles.detailSectionLabel}>Descripcion clinica</Text>
-        <Text style={styles.detailDescription}>{record.description}</Text>
-      </View>
+      <DetailTextBlock label="Descripcion general" value={record.description} />
+      <DetailTextBlock label="Motivo de consulta" value={record.consultationReason} />
+      <DetailTextBlock label="Diagnostico" value={record.diagnosis} />
+      <DetailTextBlock label="Tratamiento indicado" value={record.treatment} />
+      <DetailTextBlock label="Medicacion" value={record.medication} />
+      <DetailTextBlock
+        label="Indicaciones para propietario"
+        value={record.ownerVisibleNotes}
+      />
+      <DetailTextBlock label="Notas privadas veterinario/a" value={record.privateNotes} />
 
       <View style={styles.detailActions}>
         {onEdit ? (
@@ -773,6 +908,19 @@ function MedicalRecordDetailCard({
         </Pressable>
       </View>
     </Card>
+  );
+}
+
+function DetailTextBlock({ label, value }: { label: string; value?: string | null }) {
+  if (!value?.trim()) {
+    return null;
+  }
+
+  return (
+    <View style={styles.detailDescriptionBox}>
+      <Text style={styles.detailSectionLabel}>{label}</Text>
+      <Text style={styles.detailDescription}>{value}</Text>
+    </View>
   );
 }
 
@@ -831,6 +979,14 @@ function recordToneForType(type: MedicalRecordType) {
   }
 
   return { background: colors.surfaceAlt, color: colors.primaryDark };
+}
+
+function textOrUndefined(value: string) {
+  return value.trim() || undefined;
+}
+
+function textOrNull(value: string) {
+  return value.trim() || null;
 }
 
 const styles = StyleSheet.create({
@@ -1210,6 +1366,20 @@ const styles = StyleSheet.create({
     minHeight: 92,
     paddingTop: spacing.sm,
     textAlignVertical: 'top',
+  },
+  textAreaSmall: {
+    minHeight: 72,
+    paddingTop: spacing.sm,
+    textAlignVertical: 'top',
+  },
+  twoColumnFields: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+  },
+  compactInput: {
+    flexBasis: 180,
+    flexGrow: 1,
   },
   segment: {
     backgroundColor: colors.surfaceAlt,

@@ -51,6 +51,14 @@ export type MedicalRecord = {
   recordDate: string;
   title: string;
   description: string;
+  consultationReason?: string | null;
+  diagnosis?: string | null;
+  treatment?: string | null;
+  medication?: string | null;
+  weightKg?: string | number | null;
+  temperatureC?: string | number | null;
+  ownerVisibleNotes?: string | null;
+  privateNotes?: string | null;
   nextCheckAt?: string | null;
   vet?: VetProfile;
 };

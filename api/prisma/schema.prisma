@@ -161,6 +161,14 @@ model MedicalRecord {
   recordDate   DateTime
   title        String
   description  String            @db.Text
+  consultationReason String?      @db.Text
+  diagnosis    String?            @db.Text
+  treatment    String?            @db.Text
+  medication   String?            @db.Text
+  weightKg     Decimal?           @db.Decimal(6, 2)
+  temperatureC Decimal?           @db.Decimal(4, 1)
+  ownerVisibleNotes String?       @db.Text
+  privateNotes String?            @db.Text
   nextCheckAt  DateTime?
   createdAt    DateTime          @default(now())
   updatedAt    DateTime          @updatedAt

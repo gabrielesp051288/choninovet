@@ -20,11 +20,13 @@ export class MedicalRecordsService {
   async listByPet(user: RequestUser, petId: string) {
     await this.assertPetAccess(user, petId);
 
-    return this.prisma.medicalRecord.findMany({
+    const records = await this.prisma.medicalRecord.findMany({
       where: { petId },
       include: { vet: true },
       orderBy: { recordDate: 'desc' },
     });
+
+    return this.hidePrivateNotesForNonVets(user, records);
   }
 
   async create(user: RequestUser, dto: CreateMedicalRecordDto) {
@@ -56,6 +58,14 @@ export class MedicalRecordsService {
         recordDate: new Date(dto.recordDate),
         title: dto.title,
         description: dto.description,
+        consultationReason: this.cleanOptionalText(dto.consultationReason),
+        diagnosis: this.cleanOptionalText(dto.diagnosis),
+        treatment: this.cleanOptionalText(dto.treatment),
+        medication: this.cleanOptionalText(dto.medication),
+        weightKg: dto.weightKg,
+        temperatureC: dto.temperatureC,
+        ownerVisibleNotes: this.cleanOptionalText(dto.ownerVisibleNotes),
+        privateNotes: this.cleanOptionalText(dto.privateNotes),
         nextCheckAt: dto.nextCheckAt ? new Date(dto.nextCheckAt) : undefined,
       },
       include: { pet: true, vet: true },
@@ -87,6 +97,14 @@ export class MedicalRecordsService {
         recordDate: dto.recordDate ? new Date(dto.recordDate) : undefined,
         title: dto.title?.trim(),
         description: dto.description?.trim(),
+        consultationReason: this.cleanNullableText(dto.consultationReason),
+        diagnosis: this.cleanNullableText(dto.diagnosis),
+        treatment: this.cleanNullableText(dto.treatment),
+        medication: this.cleanNullableText(dto.medication),
+        weightKg: dto.weightKg,
+        temperatureC: dto.temperatureC,
+        ownerVisibleNotes: this.cleanNullableText(dto.ownerVisibleNotes),
+        privateNotes: this.cleanNullableText(dto.privateNotes),
         nextCheckAt:
           dto.nextCheckAt === undefined
             ? undefined
@@ -159,5 +177,32 @@ export class MedicalRecordsService {
     }
 
     return vetProfile;
+  }
+
+  private cleanOptionalText(value?: string) {
+    return value?.trim() || undefined;
+  }
+
+  private cleanNullableText(value?: string | null) {
+    if (value === undefined) {
+      return undefined;
+    }
+
+    return value?.trim() || null;
+  }
+
+  private hidePrivateNotesForNonVets<
+    T extends {
+      privateNotes: string | null;
+    },
+  >(user: RequestUser, records: T[]) {
+    if (user.role === UserRole.VET) {
+      return records;
+    }
+
+    return records.map((record) => ({
+      ...record,
+      privateNotes: null,
+    }));
   }
 }

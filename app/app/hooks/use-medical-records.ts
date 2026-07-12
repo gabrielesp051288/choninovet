@@ -16,6 +16,14 @@ export type CreateMedicalRecordInput = {
   recordDate: string;
   title: string;
   description: string;
+  consultationReason?: string;
+  diagnosis?: string;
+  treatment?: string;
+  medication?: string;
+  weightKg?: number;
+  temperatureC?: number;
+  ownerVisibleNotes?: string;
+  privateNotes?: string;
   nextCheckAt?: string;
 };
 
@@ -25,6 +33,14 @@ export type UpdateMedicalRecordInput = {
   recordDate: string;
   title: string;
   description: string;
+  consultationReason?: string | null;
+  diagnosis?: string | null;
+  treatment?: string | null;
+  medication?: string | null;
+  weightKg?: number | null;
+  temperatureC?: number | null;
+  ownerVisibleNotes?: string | null;
+  privateNotes?: string | null;
   nextCheckAt?: string | null;
 };
 
