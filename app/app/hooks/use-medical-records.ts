@@ -19,6 +19,15 @@ export type CreateMedicalRecordInput = {
   nextCheckAt?: string;
 };
 
+export type UpdateMedicalRecordInput = {
+  recordId: string;
+  type: MedicalRecordType;
+  recordDate: string;
+  title: string;
+  description: string;
+  nextCheckAt?: string | null;
+};
+
 export function useMedicalRecords(petId?: string) {
   const token = useAuthStore((state) => state.accessToken);
 
@@ -40,6 +49,24 @@ export function useCreateMedicalRecord(petId?: string) {
         method: 'POST',
         token,
         body: input,
+      }),
+    onSuccess() {
+      queryClient.invalidateQueries({ queryKey: ['medical-records', petId] });
+      queryClient.invalidateQueries({ queryKey: ['pet', petId] });
+    },
+  });
+}
+
+export function useUpdateMedicalRecord(petId?: string) {
+  const token = useAuthStore((state) => state.accessToken);
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ recordId, ...body }: UpdateMedicalRecordInput) =>
+      apiRequest<MedicalRecord>(`/medical-records/${recordId}`, {
+        method: 'PATCH',
+        token,
+        body,
       }),
     onSuccess() {
       queryClient.invalidateQueries({ queryKey: ['medical-records', petId] });

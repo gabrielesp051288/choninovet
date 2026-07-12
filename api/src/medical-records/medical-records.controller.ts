@@ -1,8 +1,9 @@
-import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
 import { UserRole } from '@prisma/client';
 import { AuthGuard } from '../auth/auth.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { CreateMedicalRecordDto } from './dto/create-medical-record.dto';
+import { UpdateMedicalRecordDto } from './dto/update-medical-record.dto';
 import { MedicalRecordsService } from './medical-records.service';
 
 type RequestUser = {
@@ -23,5 +24,14 @@ export class MedicalRecordsController {
   @Post()
   create(@CurrentUser() user: RequestUser, @Body() dto: CreateMedicalRecordDto) {
     return this.medicalRecordsService.create(user, dto);
+  }
+
+  @Patch(':id')
+  update(
+    @CurrentUser() user: RequestUser,
+    @Param('id') id: string,
+    @Body() dto: UpdateMedicalRecordDto,
+  ) {
+    return this.medicalRecordsService.update(user, id, dto);
   }
 }

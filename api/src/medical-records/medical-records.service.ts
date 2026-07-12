@@ -6,6 +6,7 @@ import {
 import { UserRole } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateMedicalRecordDto } from './dto/create-medical-record.dto';
+import { UpdateMedicalRecordDto } from './dto/update-medical-record.dto';
 
 type RequestUser = {
   sub: string;
@@ -28,7 +29,7 @@ export class MedicalRecordsService {
 
   async create(user: RequestUser, dto: CreateMedicalRecordDto) {
     if (user.role !== UserRole.VET) {
-      throw new ForbiddenException('Only vets can create medical records');
+      throw new ForbiddenException('Solo veterinarios/as pueden crear registros medicos');
     }
 
     const vetProfile = await this.getVetProfile(user.sub);
@@ -56,6 +57,42 @@ export class MedicalRecordsService {
         title: dto.title,
         description: dto.description,
         nextCheckAt: dto.nextCheckAt ? new Date(dto.nextCheckAt) : undefined,
+      },
+      include: { pet: true, vet: true },
+    });
+  }
+
+  async update(user: RequestUser, id: string, dto: UpdateMedicalRecordDto) {
+    if (user.role !== UserRole.VET) {
+      throw new ForbiddenException('Solo veterinarios/as pueden editar registros medicos');
+    }
+
+    const vetProfile = await this.getVetProfile(user.sub);
+    const record = await this.prisma.medicalRecord.findFirst({
+      where: {
+        id,
+        vetProfileId: vetProfile.id,
+      },
+      select: { id: true },
+    });
+
+    if (!record) {
+      throw new NotFoundException('Registro medico no encontrado');
+    }
+
+    return this.prisma.medicalRecord.update({
+      where: { id },
+      data: {
+        type: dto.type,
+        recordDate: dto.recordDate ? new Date(dto.recordDate) : undefined,
+        title: dto.title?.trim(),
+        description: dto.description?.trim(),
+        nextCheckAt:
+          dto.nextCheckAt === undefined
+            ? undefined
+            : dto.nextCheckAt
+              ? new Date(dto.nextCheckAt)
+              : null,
       },
       include: { pet: true, vet: true },
     });
