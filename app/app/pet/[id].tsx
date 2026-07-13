@@ -2,6 +2,7 @@ import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import { useLocalSearchParams } from 'expo-router';
 import {
+  CalendarCheck,
   CalendarDays,
   ClipboardPlus,
   Eye,
@@ -31,11 +32,12 @@ import {
   useUpdateMedicalRecord,
   type MedicalRecordType,
 } from '../hooks/use-medical-records';
+import { useAppointments } from '../hooks/use-appointments';
 import { usePet, useUpdatePet, useUploadPetPhoto } from '../hooks/use-pets';
 import { buildApiAssetUrl } from '../lib/api';
 import { useRequireRole } from '../lib/auth-routing';
 import { formatDateOnly, parseDisplayDateToIso, todayDisplayDate } from '../lib/dates';
-import { medicalRecordTypeLabel, petSexLabel } from '../lib/labels';
+import { appointmentStatusLabel, medicalRecordTypeLabel, petSexLabel } from '../lib/labels';
 import type {
   MedicalAttachment,
   MedicalAttachmentType,
@@ -74,6 +76,7 @@ export default function PetDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const petQuery = usePet(id);
   const recordsQuery = useMedicalRecords(id);
+  const appointmentsQuery = useAppointments();
   const attachmentsQuery = useMedicalAttachments(id);
   const createRecord = useCreateMedicalRecord(id);
   const updateRecord = useUpdateMedicalRecord(id);
@@ -98,6 +101,7 @@ export default function PetDetailScreen() {
   const [attachmentType, setAttachmentType] = useState<MedicalAttachmentType>('STUDY');
   const [attachmentError, setAttachmentError] = useState<string | null>(null);
   const [nextCheckAt, setNextCheckAt] = useState('');
+  const [selectedAppointmentId, setSelectedAppointmentId] = useState('');
   const [recordFilter, setRecordFilter] = useState<MedicalRecordType | 'ALL'>('ALL');
   const [isRecordFormOpen, setIsRecordFormOpen] = useState(false);
   const [editingRecordId, setEditingRecordId] = useState<string | null>(null);
@@ -139,6 +143,26 @@ export default function PetDetailScreen() {
     () => records.filter((record) => selectedRecordIdsForPrint.includes(record.id)),
     [records, selectedRecordIdsForPrint],
   );
+  const completedAppointmentsForPet = useMemo(() => {
+    const linkedRecordIds = new Set(
+      records
+        .filter((record) => record.id !== editingRecordId)
+        .map((record) => record.appointmentId)
+        .filter(Boolean),
+    );
+
+    return (appointmentsQuery.data ?? [])
+      .filter(
+        (appointment) =>
+          appointment.pet.id === id &&
+          appointment.status === 'COMPLETED' &&
+          !linkedRecordIds.has(appointment.id),
+      )
+      .sort(
+        (first, second) =>
+          new Date(second.scheduledAt).getTime() - new Date(first.scheduledAt).getTime(),
+      );
+  }, [appointmentsQuery.data, editingRecordId, id, records]);
 
   useEffect(() => {
     if (!pet) {
@@ -211,6 +235,7 @@ export default function PetDetailScreen() {
         diagnosis: textOrNull(diagnosis),
         treatment: textOrNull(treatment),
         medication: textOrNull(medication),
+        appointmentId: selectedAppointmentId || null,
         weightKg: parsedRecordWeight ?? null,
         temperatureC: parsedTemperature ?? null,
         ownerVisibleNotes: textOrNull(ownerVisibleNotes),
@@ -228,6 +253,7 @@ export default function PetDetailScreen() {
         diagnosis: textOrUndefined(diagnosis),
         treatment: textOrUndefined(treatment),
         medication: textOrUndefined(medication),
+        appointmentId: selectedAppointmentId || undefined,
         weightKg: parsedRecordWeight,
         temperatureC: parsedTemperature,
         ownerVisibleNotes: textOrUndefined(ownerVisibleNotes),
@@ -248,6 +274,7 @@ export default function PetDetailScreen() {
     setDiagnosis('');
     setTreatment('');
     setMedication('');
+    setSelectedAppointmentId('');
     setRecordWeightKg('');
     setTemperatureC('');
     setOwnerVisibleNotes('');
@@ -272,6 +299,7 @@ export default function PetDetailScreen() {
     setDiagnosis(record.diagnosis ?? '');
     setTreatment(record.treatment ?? '');
     setMedication(record.medication ?? '');
+    setSelectedAppointmentId(record.appointmentId ?? '');
     setRecordWeightKg(record.weightKg ? String(record.weightKg) : '');
     setTemperatureC(record.temperatureC ? String(record.temperatureC) : '');
     setOwnerVisibleNotes(record.ownerVisibleNotes ?? '');
@@ -863,6 +891,77 @@ export default function PetDetailScreen() {
               style={[styles.input, styles.textArea]}
               value={description}
             />
+            <View style={styles.linkedAppointmentBox}>
+              <View style={styles.linkedAppointmentHeader}>
+                <CalendarCheck color={colors.primaryDark} size={19} strokeWidth={2.4} />
+                <View style={styles.linkedAppointmentHeaderText}>
+                  <Text style={styles.linkedAppointmentTitle}>Turno completado asociado</Text>
+                  <Muted>Opcional. Vincula este registro con un turno ya atendido.</Muted>
+                </View>
+              </View>
+              {appointmentsQuery.isLoading ? <Muted>Cargando turnos completados...</Muted> : null}
+              {!appointmentsQuery.isLoading && completedAppointmentsForPet.length === 0 ? (
+                <Muted>No hay turnos completados disponibles para vincular.</Muted>
+              ) : null}
+              {completedAppointmentsForPet.length > 0 ? (
+                <View style={styles.appointmentOptionList}>
+                  <Pressable
+                    onPress={() => setSelectedAppointmentId('')}
+                    style={[
+                      styles.appointmentOption,
+                      !selectedAppointmentId && styles.appointmentOptionActive,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.appointmentOptionTitle,
+                        !selectedAppointmentId && styles.appointmentOptionTitleActive,
+                      ]}
+                    >
+                      Sin vincular
+                    </Text>
+                    <Text
+                      style={[
+                        styles.appointmentOptionMeta,
+                        !selectedAppointmentId && styles.appointmentOptionMetaActive,
+                      ]}
+                    >
+                      Registro independiente del calendario
+                    </Text>
+                  </Pressable>
+                  {completedAppointmentsForPet.map((appointment) => (
+                    <Pressable
+                      key={appointment.id}
+                      onPress={() => setSelectedAppointmentId(appointment.id)}
+                      style={[
+                        styles.appointmentOption,
+                        selectedAppointmentId === appointment.id && styles.appointmentOptionActive,
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.appointmentOptionTitle,
+                          selectedAppointmentId === appointment.id &&
+                            styles.appointmentOptionTitleActive,
+                        ]}
+                      >
+                        {formatDateTime(appointment.scheduledAt)}
+                      </Text>
+                      <Text
+                        style={[
+                          styles.appointmentOptionMeta,
+                          selectedAppointmentId === appointment.id &&
+                            styles.appointmentOptionMetaActive,
+                        ]}
+                      >
+                        {appointment.reason?.trim() || 'Turno sin motivo cargado'} -{' '}
+                        {appointmentStatusLabel(appointment.status)}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+              ) : null}
+            </View>
             <TextInput
               multiline
               onChangeText={setConsultationReason}
@@ -1096,6 +1195,9 @@ function MedicalRecordDetailCard({
 }) {
   const tone = recordToneForType(record.type);
   const canPrint = Platform.OS === 'web';
+  const canGeneratePrescription = Boolean(
+    record.medication?.trim() || record.treatment?.trim() || record.ownerVisibleNotes?.trim(),
+  );
 
   return (
     <Card>
@@ -1117,6 +1219,16 @@ function MedicalRecordDetailCard({
         <DetailField label="Paciente" value={petName} />
         <DetailField label="Propietario" value={ownerName} />
         <DetailField label="Veterinario/a" value={record.vet?.clinicName ?? 'Sin dato'} />
+        <DetailField
+          label="Turno asociado"
+          value={
+            record.appointment
+              ? `${formatDateTime(record.appointment.scheduledAt)} - ${appointmentStatusLabel(
+                  record.appointment.status,
+                )}`
+              : 'Sin vincular'
+          }
+        />
         <DetailField
           label="Peso registrado"
           value={record.weightKg ? `${record.weightKg} kg` : 'Sin dato'}
@@ -1186,9 +1298,33 @@ function MedicalRecordDetailCard({
           <Paperclip color={colors.primaryDark} size={17} strokeWidth={2.4} />
           <Text style={styles.detailActionText}>Adjuntos</Text>
         </Pressable>
-        <Pressable disabled style={[styles.detailActionButton, styles.disabledAction]}>
-          <FileText color={colors.muted} size={17} strokeWidth={2.4} />
-          <Text style={[styles.detailActionText, styles.disabledActionText]}>Receta</Text>
+        <Pressable
+          disabled={!canPrint || !canGeneratePrescription}
+          onPress={() =>
+            downloadPrescriptionPdf({
+              ownerName,
+              petName,
+              record,
+            })
+          }
+          style={[
+            styles.detailActionButton,
+            (!canPrint || !canGeneratePrescription) && styles.disabledAction,
+          ]}
+        >
+          <FileText
+            color={canPrint && canGeneratePrescription ? colors.primaryDark : colors.muted}
+            size={17}
+            strokeWidth={2.4}
+          />
+          <Text
+            style={[
+              styles.detailActionText,
+              (!canPrint || !canGeneratePrescription) && styles.disabledActionText,
+            ]}
+          >
+            Receta
+          </Text>
         </Pressable>
       </View>
     </Card>
@@ -1354,6 +1490,24 @@ async function downloadMedicalRecordPdf({
   downloadPdfBytes(pdf, `informe-${safeFileName(petName)}-${formatDateOnly(record.recordDate)}.pdf`);
 }
 
+async function downloadPrescriptionPdf({
+  ownerName,
+  petName,
+  record,
+}: {
+  ownerName: string;
+  petName: string;
+  record: MedicalRecord;
+}) {
+  if (Platform.OS !== 'web' || typeof window === 'undefined') {
+    return;
+  }
+
+  const pdf = createPrescriptionPdf({ ownerName, petName, record });
+
+  downloadPdfBytes(pdf, `receta-${safeFileName(petName)}-${formatDateOnly(record.recordDate)}.pdf`);
+}
+
 async function downloadMedicalRecordCollectionPdf({
   mode,
   ownerName,
@@ -1412,6 +1566,9 @@ function createMedicalRecordPdf({
     );
     renderer.text(record.title, 13, true);
     renderer.text(`Veterinario/a: ${record.vet?.clinicName ?? 'Sin dato'}`, 10);
+    if (record.appointment) {
+      renderer.text(`Turno asociado: ${appointmentSummary(record.appointment)}`, 10);
+    }
     renderer.text(
       `Proximo control: ${record.nextCheckAt ? formatDateOnly(record.nextCheckAt) : 'Sin fecha'} | Peso: ${
         record.weightKg ? `${record.weightKg} kg` : 'Sin dato'
@@ -1427,6 +1584,47 @@ function createMedicalRecordPdf({
     renderer.clinicalBlock('Notas privadas veterinario/a', record.privateNotes);
     renderer.rule();
   });
+
+  return renderer.bytes();
+}
+
+function createPrescriptionPdf({
+  ownerName,
+  petName,
+  record,
+}: {
+  ownerName: string;
+  petName: string;
+  record: MedicalRecord;
+}) {
+  const renderer = createSimplePdfRenderer();
+
+  renderer.text('choninovet', 10, true);
+  renderer.text('Receta e indicaciones', 18, true);
+  renderer.text(`Emitido el ${todayDisplayDate()}`, 10);
+  renderer.rule();
+  renderer.text(`Paciente: ${petName}`, 11, true);
+  renderer.text(`Propietario: ${ownerName}`, 11, true);
+  renderer.text(`Veterinario/a: ${record.vet?.clinicName ?? 'Sin dato'}`, 11, true);
+  renderer.text(`Registro: ${record.title} - ${formatDateOnly(record.recordDate)}`, 10);
+
+  if (record.appointment) {
+    renderer.text(`Turno asociado: ${appointmentSummary(record.appointment)}`, 10);
+  }
+
+  renderer.space(10);
+  renderer.clinicalBlock('Medicacion', record.medication);
+  renderer.clinicalBlock('Tratamiento indicado', record.treatment);
+  renderer.clinicalBlock('Indicaciones para propietario', record.ownerVisibleNotes);
+
+  if (!record.medication?.trim() && !record.treatment?.trim() && !record.ownerVisibleNotes?.trim()) {
+    renderer.text('Sin medicacion ni indicaciones cargadas.', 10);
+  }
+
+  renderer.rule();
+  renderer.text('Firma y sello profesional:', 10, true);
+  renderer.space(32);
+  renderer.rule();
 
   return renderer.bytes();
 }
@@ -1867,6 +2065,7 @@ function buildMedicalRecordPrintHtml({
         ${printableField('Paciente', petName)}
         ${printableField('Propietario', ownerName)}
         ${printableField('Veterinario/a', record.vet?.clinicName ?? 'Sin dato')}
+        ${printableField('Turno asociado', record.appointment ? appointmentSummary(record.appointment) : 'Sin vincular')}
         ${printableField('Proximo control', record.nextCheckAt ? formatDateOnly(record.nextCheckAt) : 'Sin fecha')}
         ${printableField('Peso registrado', record.weightKg ? `${record.weightKg} kg` : 'Sin dato')}
         ${printableField('Temperatura', record.temperatureC ? `${record.temperatureC} C` : 'Sin dato')}
@@ -1918,6 +2117,7 @@ function buildMedicalRecordCollectionPrintHtml({
           </div>
           <section class="record-facts">
             ${printableInlineFact('Veterinario/a', record.vet?.clinicName ?? 'Sin dato')}
+            ${printableInlineFact('Turno asociado', record.appointment ? appointmentSummary(record.appointment) : 'Sin vincular')}
             ${printableInlineFact('Proximo control', record.nextCheckAt ? formatDateOnly(record.nextCheckAt) : 'Sin fecha')}
             ${printableInlineFact('Peso', record.weightKg ? `${record.weightKg} kg` : 'Sin dato')}
             ${printableInlineFact('Temperatura', record.temperatureC ? `${record.temperatureC} C` : 'Sin dato')}
@@ -2316,6 +2516,29 @@ function textOrUndefined(value: string) {
 
 function textOrNull(value: string) {
   return value.trim() || null;
+}
+
+function formatDateTime(value: string) {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  const time = date.toLocaleTimeString('es-AR', {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+
+  return `${formatDateOnly(value)} ${time}`;
+}
+
+function appointmentSummary(appointment: NonNullable<MedicalRecord['appointment']>) {
+  const reason = appointment.reason?.trim() ? ` - ${appointment.reason.trim()}` : '';
+
+  return `${formatDateTime(appointment.scheduledAt)} - ${appointmentStatusLabel(
+    appointment.status,
+  )}${reason}`;
 }
 
 const styles = StyleSheet.create({
@@ -2808,6 +3031,62 @@ const styles = StyleSheet.create({
   compactInput: {
     flexBasis: 180,
     flexGrow: 1,
+  },
+  linkedAppointmentBox: {
+    backgroundColor: colors.surfaceAlt,
+    borderColor: colors.border,
+    borderRadius: 8,
+    borderWidth: 1,
+    gap: spacing.sm,
+    padding: spacing.sm,
+  },
+  linkedAppointmentHeader: {
+    alignItems: 'flex-start',
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  linkedAppointmentHeaderText: {
+    flex: 1,
+    gap: 2,
+  },
+  linkedAppointmentTitle: {
+    color: colors.text,
+    fontSize: 15,
+    fontWeight: '900',
+  },
+  appointmentOptionList: {
+    gap: spacing.xs,
+  },
+  appointmentOption: {
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderRadius: 8,
+    borderWidth: 1,
+    gap: 3,
+    minHeight: 58,
+    justifyContent: 'center',
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+  },
+  appointmentOptionActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  appointmentOptionTitle: {
+    color: colors.text,
+    fontSize: 14,
+    fontWeight: '900',
+  },
+  appointmentOptionTitleActive: {
+    color: '#ffffff',
+  },
+  appointmentOptionMeta: {
+    color: colors.muted,
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  appointmentOptionMetaActive: {
+    color: '#eafff7',
   },
   segment: {
     backgroundColor: colors.surfaceAlt,

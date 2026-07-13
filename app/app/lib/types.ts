@@ -47,6 +47,7 @@ export type MedicalRecordType =
 
 export type MedicalRecord = {
   id: string;
+  appointmentId?: string | null;
   type: MedicalRecordType;
   recordDate: string;
   title: string;
@@ -61,6 +62,7 @@ export type MedicalRecord = {
   privateNotes?: string | null;
   nextCheckAt?: string | null;
   vet?: VetProfile;
+  appointment?: Appointment | null;
 };
 
 export type MedicalAttachmentType =

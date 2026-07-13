@@ -3,7 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { UserRole } from '@prisma/client';
+import { AppointmentStatus, UserRole } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateMedicalRecordDto } from './dto/create-medical-record.dto';
 import { UpdateMedicalRecordDto } from './dto/update-medical-record.dto';
@@ -22,7 +22,7 @@ export class MedicalRecordsService {
 
     const records = await this.prisma.medicalRecord.findMany({
       where: { petId },
-      include: { vet: true },
+      include: { appointment: { include: { pet: true, vet: true } }, vet: true },
       orderBy: { recordDate: 'desc' },
     });
 
@@ -50,10 +50,17 @@ export class MedicalRecordsService {
       throw new NotFoundException('Associated pet not found');
     }
 
+    await this.assertCompletedAppointment({
+      appointmentId: dto.appointmentId,
+      petId: dto.petId,
+      vetProfileId: vetProfile.id,
+    });
+
     return this.prisma.medicalRecord.create({
       data: {
         petId: dto.petId,
         vetProfileId: vetProfile.id,
+        appointmentId: dto.appointmentId || undefined,
         type: dto.type,
         recordDate: new Date(dto.recordDate),
         title: dto.title,
@@ -68,7 +75,7 @@ export class MedicalRecordsService {
         privateNotes: this.cleanOptionalText(dto.privateNotes),
         nextCheckAt: dto.nextCheckAt ? new Date(dto.nextCheckAt) : undefined,
       },
-      include: { pet: true, vet: true },
+      include: { appointment: { include: { pet: true, vet: true } }, pet: true, vet: true },
     });
   }
 
@@ -83,16 +90,24 @@ export class MedicalRecordsService {
         id,
         vetProfileId: vetProfile.id,
       },
-      select: { id: true },
+      select: { id: true, petId: true },
     });
 
     if (!record) {
       throw new NotFoundException('Registro medico no encontrado');
     }
 
+    await this.assertCompletedAppointment({
+      appointmentId: dto.appointmentId ?? undefined,
+      petId: record.petId,
+      vetProfileId: vetProfile.id,
+    });
+
     return this.prisma.medicalRecord.update({
       where: { id },
       data: {
+        appointmentId:
+          dto.appointmentId === undefined ? undefined : dto.appointmentId || null,
         type: dto.type,
         recordDate: dto.recordDate ? new Date(dto.recordDate) : undefined,
         title: dto.title?.trim(),
@@ -112,8 +127,38 @@ export class MedicalRecordsService {
               ? new Date(dto.nextCheckAt)
               : null,
       },
-      include: { pet: true, vet: true },
+      include: { appointment: { include: { pet: true, vet: true } }, pet: true, vet: true },
     });
+  }
+
+  private async assertCompletedAppointment({
+    appointmentId,
+    petId,
+    vetProfileId,
+  }: {
+    appointmentId?: string;
+    petId: string;
+    vetProfileId: string;
+  }) {
+    if (!appointmentId) {
+      return;
+    }
+
+    const appointment = await this.prisma.appointment.findFirst({
+      where: {
+        id: appointmentId,
+        petId,
+        vetProfileId,
+        status: AppointmentStatus.COMPLETED,
+      },
+      select: { id: true },
+    });
+
+    if (!appointment) {
+      throw new ForbiddenException(
+        'El turno vinculado debe estar completado y pertenecer a esta mascota y veterinario/a',
+      );
+    }
   }
 
   private async assertPetAccess(user: RequestUser, petId: string) {

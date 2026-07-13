@@ -14,6 +14,10 @@ export class UpdateMedicalRecordDto {
   type?: MedicalRecordType;
 
   @IsOptional()
+  @IsString()
+  appointmentId?: string | null;
+
+  @IsOptional()
   @IsDateString()
   recordDate?: string;
 

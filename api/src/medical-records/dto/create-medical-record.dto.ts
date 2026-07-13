@@ -12,6 +12,10 @@ export class CreateMedicalRecordDto {
   @IsString()
   petId: string;
 
+  @IsOptional()
+  @IsString()
+  appointmentId?: string;
+
   @IsEnum(MedicalRecordType)
   type: MedicalRecordType;
 

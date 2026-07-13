@@ -12,6 +12,7 @@ export type MedicalRecordType =
 
 export type CreateMedicalRecordInput = {
   petId: string;
+  appointmentId?: string;
   type: MedicalRecordType;
   recordDate: string;
   title: string;
@@ -29,6 +30,7 @@ export type CreateMedicalRecordInput = {
 
 export type UpdateMedicalRecordInput = {
   recordId: string;
+  appointmentId?: string | null;
   type: MedicalRecordType;
   recordDate: string;
   title: string;

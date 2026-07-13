@@ -168,6 +168,7 @@ model MedicalRecord {
   id           String            @id @default(cuid())
   petId        String
   vetProfileId String
+  appointmentId String?          @unique
   type         MedicalRecordType
   recordDate   DateTime
   title        String
@@ -185,10 +186,12 @@ model MedicalRecord {
   updatedAt    DateTime          @updatedAt
   pet          Pet               @relation(fields: [petId], references: [id], onDelete: Cascade)
   vet          VetProfile        @relation(fields: [vetProfileId], references: [id], onDelete: Cascade)
+  appointment  Appointment?      @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
   attachments  MedicalAttachment[]
 
   @@index([petId])
   @@index([vetProfileId])
+  @@index([appointmentId])
   @@map("medical_records")
 }
 
@@ -226,6 +229,7 @@ model Appointment {
   updatedAt          DateTime          @updatedAt
   pet                Pet               @relation(fields: [petId], references: [id], onDelete: Cascade)
   vet                VetProfile        @relation(fields: [vetProfileId], references: [id], onDelete: Cascade)
+  medicalRecord      MedicalRecord?
 
   @@index([petId])
   @@index([vetProfileId])
