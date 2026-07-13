@@ -3,7 +3,8 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { AppointmentStatus, UserRole } from '@prisma/client';
+import { AppointmentStatus, Prisma, UserRole } from '@prisma/client';
+import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateMedicalRecordDto } from './dto/create-medical-record.dto';
 import { UpdateMedicalRecordDto } from './dto/update-medical-record.dto';
@@ -15,7 +16,10 @@ type RequestUser = {
 
 @Injectable()
 export class MedicalRecordsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly auditService: AuditService,
+  ) {}
 
   async listByPet(user: RequestUser, petId: string) {
     await this.assertPetAccess(user, petId);
@@ -56,7 +60,7 @@ export class MedicalRecordsService {
       vetProfileId: vetProfile.id,
     });
 
-    return this.prisma.medicalRecord.create({
+    const createdRecord = await this.prisma.medicalRecord.create({
       data: {
         petId: dto.petId,
         vetProfileId: vetProfile.id,
@@ -77,6 +81,26 @@ export class MedicalRecordsService {
       },
       include: { appointment: { include: { pet: true, vet: true } }, pet: true, vet: true },
     });
+
+    await this.auditService.log({
+      action: 'MEDICAL_RECORD_CREATED',
+      actorUserId: user.sub,
+      entityId: createdRecord.id,
+      entityName: createdRecord.title,
+      entityType: 'MEDICAL_RECORD',
+      metadata: {
+        appointmentId: createdRecord.appointmentId,
+        petId: createdRecord.petId,
+        petName: createdRecord.pet.name,
+        recordDate: createdRecord.recordDate.toISOString(),
+        type: createdRecord.type,
+        vetProfileId: createdRecord.vetProfileId,
+        vetName: createdRecord.vet.clinicName,
+      },
+      summary: `Creo registro medico ${createdRecord.title} para ${createdRecord.pet.name}`,
+    });
+
+    return createdRecord;
   }
 
   async update(user: RequestUser, id: string, dto: UpdateMedicalRecordDto) {
@@ -90,7 +114,7 @@ export class MedicalRecordsService {
         id,
         vetProfileId: vetProfile.id,
       },
-      select: { id: true, petId: true },
+      include: { pet: true, vet: true },
     });
 
     if (!record) {
@@ -103,7 +127,7 @@ export class MedicalRecordsService {
       vetProfileId: vetProfile.id,
     });
 
-    return this.prisma.medicalRecord.update({
+    const updatedRecord = await this.prisma.medicalRecord.update({
       where: { id },
       data: {
         appointmentId:
@@ -129,6 +153,96 @@ export class MedicalRecordsService {
       },
       include: { appointment: { include: { pet: true, vet: true } }, pet: true, vet: true },
     });
+
+    const changedFields = this.getChangedFields(record, updatedRecord);
+
+    if (changedFields.length > 0) {
+      await this.auditService.log({
+        action: 'MEDICAL_RECORD_UPDATED',
+        actorUserId: user.sub,
+        entityId: updatedRecord.id,
+        entityName: updatedRecord.title,
+        entityType: 'MEDICAL_RECORD',
+        metadata: {
+          appointmentId: updatedRecord.appointmentId,
+          changedFields,
+          petId: updatedRecord.petId,
+          petName: updatedRecord.pet.name,
+          previousTitle: record.title,
+          recordDate: updatedRecord.recordDate.toISOString(),
+          type: updatedRecord.type,
+          vetProfileId: updatedRecord.vetProfileId,
+          vetName: updatedRecord.vet.clinicName,
+        },
+        summary: `Edito registro medico ${updatedRecord.title} para ${updatedRecord.pet.name}`,
+      });
+    }
+
+    return updatedRecord;
+  }
+
+  private getChangedFields(
+    previousRecord: {
+      appointmentId: string | null;
+      consultationReason: string | null;
+      description: string;
+      diagnosis: string | null;
+      medication: string | null;
+      nextCheckAt: Date | null;
+      ownerVisibleNotes: string | null;
+      privateNotes: string | null;
+      recordDate: Date;
+      temperatureC: Prisma.Decimal | null;
+      title: string;
+      treatment: string | null;
+      type: string;
+      weightKg: Prisma.Decimal | null;
+    },
+    nextRecord: {
+      appointmentId: string | null;
+      consultationReason: string | null;
+      description: string;
+      diagnosis: string | null;
+      medication: string | null;
+      nextCheckAt: Date | null;
+      ownerVisibleNotes: string | null;
+      privateNotes: string | null;
+      recordDate: Date;
+      temperatureC: Prisma.Decimal | null;
+      title: string;
+      treatment: string | null;
+      type: string;
+      weightKg: Prisma.Decimal | null;
+    },
+  ) {
+    const comparisons: Array<[string, unknown, unknown]> = [
+      ['appointmentId', previousRecord.appointmentId, nextRecord.appointmentId],
+      ['type', previousRecord.type, nextRecord.type],
+      ['recordDate', previousRecord.recordDate.toISOString(), nextRecord.recordDate.toISOString()],
+      ['title', previousRecord.title, nextRecord.title],
+      ['description', previousRecord.description, nextRecord.description],
+      ['consultationReason', previousRecord.consultationReason, nextRecord.consultationReason],
+      ['diagnosis', previousRecord.diagnosis, nextRecord.diagnosis],
+      ['treatment', previousRecord.treatment, nextRecord.treatment],
+      ['medication', previousRecord.medication, nextRecord.medication],
+      ['weightKg', previousRecord.weightKg?.toString() ?? null, nextRecord.weightKg?.toString() ?? null],
+      [
+        'temperatureC',
+        previousRecord.temperatureC?.toString() ?? null,
+        nextRecord.temperatureC?.toString() ?? null,
+      ],
+      ['ownerVisibleNotes', previousRecord.ownerVisibleNotes, nextRecord.ownerVisibleNotes],
+      ['privateNotes', previousRecord.privateNotes, nextRecord.privateNotes],
+      [
+        'nextCheckAt',
+        previousRecord.nextCheckAt?.toISOString() ?? null,
+        nextRecord.nextCheckAt?.toISOString() ?? null,
+      ],
+    ];
+
+    return comparisons
+      .filter(([, previousValue, nextValue]) => previousValue !== nextValue)
+      .map(([field]) => field);
   }
 
   private async assertCompletedAppointment({

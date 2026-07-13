@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { AuditModule } from '../audit/audit.module';
 import { AuthModule } from '../auth/auth.module';
 import { MedicalAttachmentsController } from './medical-attachments.controller';
 import { MedicalAttachmentsService } from './medical-attachments.service';
@@ -6,7 +7,7 @@ import { MedicalRecordsController } from './medical-records.controller';
 import { MedicalRecordsService } from './medical-records.service';
 
 @Module({
-  imports: [AuthModule],
+  imports: [AuthModule, AuditModule],
   controllers: [MedicalRecordsController, MedicalAttachmentsController],
   providers: [MedicalRecordsService, MedicalAttachmentsService],
 })
