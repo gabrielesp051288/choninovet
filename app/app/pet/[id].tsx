@@ -1514,7 +1514,7 @@ function VaccinationCard({
             onChange={onAppliedAtChange}
             value={appliedAt}
           />
-          <CalendarDatePicker
+          <CompactDateSelector
             label="Proxima dosis"
             optional
             onChange={onNextDueAtChange}
