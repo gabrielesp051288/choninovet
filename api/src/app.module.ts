@@ -12,6 +12,7 @@ import { PrismaModule } from './prisma/prisma.module';
 import { RemindersModule } from './reminders/reminders.module';
 import { ScheduleModule } from './schedule/schedule.module';
 import { SetupModule } from './setup/setup.module';
+import { VaccinationsModule } from './vaccinations/vaccinations.module';
 import { VetsModule } from './vets/vets.module';
 
 @Module({
@@ -32,6 +33,7 @@ import { VetsModule } from './vets/vets.module';
     MessagesModule,
     ScheduleModule,
     SetupModule,
+    VaccinationsModule,
   ],
 })
 export class AppModule {}

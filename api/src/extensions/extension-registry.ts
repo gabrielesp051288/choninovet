@@ -47,6 +47,12 @@ export const supportedDemandExtensions = [
     name: 'None',
     supportedEntries: ['adminSection', 'vetDashboardTile'],
   },
+  {
+    adapter: 'vaccination-plan',
+    key: 'vaccination-plan',
+    name: 'Vacunacion avanzada y carnet',
+    supportedEntries: ['vetDashboardTile', 'vetPetDetailSection', 'ownerPetDetailSection'],
+  },
 ] as const satisfies readonly SupportedDemandExtension[];
 
 export function findSupportedDemandExtension(key: string, adapter: string) {

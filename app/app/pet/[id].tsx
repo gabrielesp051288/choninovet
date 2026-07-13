@@ -32,17 +32,24 @@ import {
   useUpdateMedicalRecord,
   type MedicalRecordType,
 } from '../hooks/use-medical-records';
+import { useActiveExtensions } from '../hooks/use-extensions';
 import { useAppointments } from '../hooks/use-appointments';
 import { usePet, useUpdatePet, useUploadPetPhoto } from '../hooks/use-pets';
+import { useCreateVaccination, useVaccinations } from '../hooks/use-vaccinations';
 import { buildApiAssetUrl } from '../lib/api';
 import { useRequireRole } from '../lib/auth-routing';
 import { formatDateOnly, parseDisplayDateToIso, todayDisplayDate } from '../lib/dates';
+import {
+  hasActiveOwnerPetDetailSection,
+  hasActiveVetPetDetailSection,
+} from '../lib/extensions';
 import { appointmentStatusLabel, medicalRecordTypeLabel, petSexLabel } from '../lib/labels';
 import type {
   MedicalAttachment,
   MedicalAttachmentType,
   MedicalRecord,
   PetSex,
+  VaccinationRecord,
 } from '../lib/types';
 import { useAuthStore } from '../stores/auth-store';
 import { colors, spacing } from '../theme';
@@ -76,9 +83,18 @@ export default function PetDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const petQuery = usePet(id);
   const recordsQuery = useMedicalRecords(id);
+  const extensionsQuery = useActiveExtensions();
   const appointmentsQuery = useAppointments();
   const attachmentsQuery = useMedicalAttachments(id);
+  const activeExtensions = extensionsQuery.data ?? [];
+  const hasVaccinationExtension = activeExtensions.some((extension) =>
+    user?.role === 'OWNER'
+      ? hasActiveOwnerPetDetailSection(extension)
+      : hasActiveVetPetDetailSection(extension) || hasActiveOwnerPetDetailSection(extension),
+  );
+  const vaccinationsQuery = useVaccinations(id, hasVaccinationExtension);
   const createRecord = useCreateMedicalRecord(id);
+  const createVaccination = useCreateVaccination(id);
   const updateRecord = useUpdateMedicalRecord(id);
   const uploadAttachment = useUploadMedicalAttachment(id);
   const downloadAttachment = useDownloadMedicalAttachment();
@@ -118,6 +134,13 @@ export default function PetDetailScreen() {
   const [editNotes, setEditNotes] = useState('');
   const [editError, setEditError] = useState<string | null>(null);
   const [editSuccess, setEditSuccess] = useState<string | null>(null);
+  const [vaccineName, setVaccineName] = useState('');
+  const [vaccineBrand, setVaccineBrand] = useState('');
+  const [vaccineBatchNumber, setVaccineBatchNumber] = useState('');
+  const [vaccineAppliedAt, setVaccineAppliedAt] = useState(todayDisplayDate());
+  const [vaccineNextDueAt, setVaccineNextDueAt] = useState('');
+  const [vaccineNotes, setVaccineNotes] = useState('');
+  const [vaccinationError, setVaccinationError] = useState<string | null>(null);
   const records = useMemo(() => recordsQuery.data ?? [], [recordsQuery.data]);
   const filteredRecords = useMemo(
     () => records.filter((record) => recordFilter === 'ALL' || record.type === recordFilter),
@@ -411,6 +434,51 @@ export default function PetDetailScreen() {
       notes: editNotes.trim() || undefined,
     });
     setEditSuccess('Mascota actualizada correctamente.');
+  }
+
+  async function handleCreateVaccination() {
+    if (!id) {
+      return;
+    }
+
+    setVaccinationError(null);
+
+    if (!vaccineName.trim() || !vaccineAppliedAt.trim()) {
+      setVaccinationError('Vacuna y fecha de aplicacion son obligatorias.');
+      return;
+    }
+
+    const parsedAppliedAt = parseDisplayDateToIso(vaccineAppliedAt);
+    const parsedNextDueAt = vaccineNextDueAt.trim()
+      ? parseDisplayDateToIso(vaccineNextDueAt)
+      : undefined;
+
+    if (!parsedAppliedAt) {
+      setVaccinationError('La fecha de aplicacion debe tener formato DD-MM-AAAA.');
+      return;
+    }
+
+    if (vaccineNextDueAt.trim() && !parsedNextDueAt) {
+      setVaccinationError('La proxima dosis debe tener formato DD-MM-AAAA.');
+      return;
+    }
+
+    await createVaccination.mutateAsync({
+      petId: id,
+      vaccineName: vaccineName.trim(),
+      brand: textOrUndefined(vaccineBrand),
+      batchNumber: textOrUndefined(vaccineBatchNumber),
+      appliedAt: parsedAppliedAt,
+      nextDueAt: parsedNextDueAt ?? undefined,
+      notes: textOrUndefined(vaccineNotes),
+    });
+
+    setVaccineName('');
+    setVaccineBrand('');
+    setVaccineBatchNumber('');
+    setVaccineAppliedAt(todayDisplayDate());
+    setVaccineNextDueAt('');
+    setVaccineNotes('');
   }
 
   async function handlePickPhoto() {
@@ -817,6 +885,32 @@ export default function PetDetailScreen() {
           petName={pet.name}
           record={selectedRecord}
           ownerName={pet.owner ? `${pet.owner.firstName} ${pet.owner.lastName}` : 'Sin propietario'}
+        />
+      ) : null}
+
+      {hasVaccinationExtension ? (
+        <VaccinationCard
+          appliedAt={vaccineAppliedAt}
+          batchNumber={vaccineBatchNumber}
+          brand={vaccineBrand}
+          canCreate={user?.role === 'VET'}
+          error={
+            vaccinationError ??
+            (createVaccination.error instanceof Error ? createVaccination.error.message : null)
+          }
+          isCreating={createVaccination.isPending}
+          isLoading={vaccinationsQuery.isLoading}
+          name={vaccineName}
+          nextDueAt={vaccineNextDueAt}
+          notes={vaccineNotes}
+          onAppliedAtChange={setVaccineAppliedAt}
+          onBatchNumberChange={setVaccineBatchNumber}
+          onBrandChange={setVaccineBrand}
+          onCreate={handleCreateVaccination}
+          onNameChange={setVaccineName}
+          onNextDueAtChange={setVaccineNextDueAt}
+          onNotesChange={setVaccineNotes}
+          records={vaccinationsQuery.data ?? []}
         />
       ) : null}
 
@@ -1341,6 +1435,141 @@ function DetailTextBlock({ label, value }: { label: string; value?: string | nul
       <Text style={styles.detailSectionLabel}>{label}</Text>
       <Text style={styles.detailDescription}>{value}</Text>
     </View>
+  );
+}
+
+function VaccinationCard({
+  appliedAt,
+  batchNumber,
+  brand,
+  canCreate,
+  error,
+  isCreating,
+  isLoading,
+  name,
+  nextDueAt,
+  notes,
+  onAppliedAtChange,
+  onBatchNumberChange,
+  onBrandChange,
+  onCreate,
+  onNameChange,
+  onNextDueAtChange,
+  onNotesChange,
+  records,
+}: {
+  appliedAt: string;
+  batchNumber: string;
+  brand: string;
+  canCreate: boolean;
+  error?: string | null;
+  isCreating: boolean;
+  isLoading: boolean;
+  name: string;
+  nextDueAt: string;
+  notes: string;
+  onAppliedAtChange: (value: string) => void;
+  onBatchNumberChange: (value: string) => void;
+  onBrandChange: (value: string) => void;
+  onCreate: () => void;
+  onNameChange: (value: string) => void;
+  onNextDueAtChange: (value: string) => void;
+  onNotesChange: (value: string) => void;
+  records: VaccinationRecord[];
+}) {
+  return (
+    <Card>
+      <View style={styles.sectionHeaderRow}>
+        <View style={styles.sectionHeaderText}>
+          <SectionTitle>Carnet de vacunacion</SectionTitle>
+          <Muted>Extension activa: vacunas aplicadas y proximas dosis.</Muted>
+        </View>
+        <ShieldCheck color={colors.primaryDark} size={24} strokeWidth={2.4} />
+      </View>
+
+      {canCreate ? (
+        <View style={styles.form}>
+          <TextInput
+            onChangeText={onNameChange}
+            placeholder="Nombre de la vacuna"
+            style={styles.input}
+            value={name}
+          />
+          <View style={styles.twoColumnFields}>
+            <TextInput
+              onChangeText={onBrandChange}
+              placeholder="Marca opcional"
+              style={[styles.input, styles.compactInput]}
+              value={brand}
+            />
+            <TextInput
+              onChangeText={onBatchNumberChange}
+              placeholder="Lote opcional"
+              style={[styles.input, styles.compactInput]}
+              value={batchNumber}
+            />
+          </View>
+          <CompactDateSelector
+            label="Fecha de aplicacion"
+            onChange={onAppliedAtChange}
+            value={appliedAt}
+          />
+          <CalendarDatePicker
+            label="Proxima dosis"
+            optional
+            onChange={onNextDueAtChange}
+            value={nextDueAt}
+          />
+          <TextInput
+            multiline
+            onChangeText={onNotesChange}
+            placeholder="Observaciones opcionales"
+            style={[styles.input, styles.textAreaSmall]}
+            value={notes}
+          />
+          {error ? <Text style={styles.error}>{error}</Text> : null}
+          <Pressable
+            disabled={isCreating}
+            onPress={onCreate}
+            style={[styles.button, isCreating && styles.buttonDisabled]}
+          >
+            <Text style={styles.buttonText}>
+              {isCreating ? 'Guardando...' : 'Guardar vacuna'}
+            </Text>
+          </Pressable>
+        </View>
+      ) : null}
+
+      {isLoading ? <Muted>Cargando carnet...</Muted> : null}
+      {!isLoading && records.length === 0 ? (
+        <Muted>No hay vacunas cargadas para esta mascota.</Muted>
+      ) : null}
+
+      <View style={styles.vaccineList}>
+        {records.map((record) => (
+          <View key={record.id} style={styles.vaccineRow}>
+            <View style={styles.vaccineIcon}>
+              <ShieldCheck color={colors.primaryDark} size={20} strokeWidth={2.4} />
+            </View>
+            <View style={styles.vaccineInfo}>
+              <Text style={styles.vaccineTitle}>{record.vaccineName}</Text>
+              <Muted>
+                Aplicada: {formatDateOnly(record.appliedAt)}
+                {record.nextDueAt ? ` - Proxima: ${formatDateOnly(record.nextDueAt)}` : ''}
+              </Muted>
+              {record.brand || record.batchNumber ? (
+                <Muted>
+                  {record.brand ? `Marca: ${record.brand}` : ''}
+                  {record.brand && record.batchNumber ? ' - ' : ''}
+                  {record.batchNumber ? `Lote: ${record.batchNumber}` : ''}
+                </Muted>
+              ) : null}
+              {record.notes ? <Text style={styles.description}>{record.notes}</Text> : null}
+            </View>
+          </View>
+        ))}
+      </View>
+    </Card>
   );
 }
 
@@ -2903,6 +3132,36 @@ const styles = StyleSheet.create({
     height: 42,
     justifyContent: 'center',
     width: 42,
+  },
+  vaccineList: {
+    gap: spacing.sm,
+  },
+  vaccineRow: {
+    alignItems: 'flex-start',
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderRadius: 8,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: spacing.sm,
+    padding: spacing.sm,
+  },
+  vaccineIcon: {
+    alignItems: 'center',
+    backgroundColor: colors.surfaceAlt,
+    borderRadius: 8,
+    height: 38,
+    justifyContent: 'center',
+    width: 38,
+  },
+  vaccineInfo: {
+    flex: 1,
+    gap: 3,
+  },
+  vaccineTitle: {
+    color: colors.text,
+    fontSize: 15,
+    fontWeight: '900',
   },
   detailDescriptionBox: {
     backgroundColor: colors.surface,

@@ -57,3 +57,19 @@ export function hasActiveAdminSection(extension: AppExtension) {
     Boolean(extension.manifest?.entry?.adminSection)
   );
 }
+
+export function hasActiveVetPetDetailSection(extension: AppExtension) {
+  return (
+    extension.status === 'ACTIVE' &&
+    extension.manifest?.adapter === 'vaccination-plan' &&
+    Boolean(extension.manifest?.entry?.vetPetDetailSection)
+  );
+}
+
+export function hasActiveOwnerPetDetailSection(extension: AppExtension) {
+  return (
+    extension.status === 'ACTIVE' &&
+    extension.manifest?.adapter === 'vaccination-plan' &&
+    Boolean(extension.manifest?.entry?.ownerPetDetailSection)
+  );
+}

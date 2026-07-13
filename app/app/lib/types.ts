@@ -90,6 +90,19 @@ export type MedicalAttachment = {
   } | null;
 };
 
+export type VaccinationRecord = {
+  id: string;
+  petId: string;
+  vetProfileId: string;
+  vaccineName: string;
+  brand?: string | null;
+  batchNumber?: string | null;
+  appliedAt: string;
+  nextDueAt?: string | null;
+  notes?: string | null;
+  vet?: VetProfile;
+};
+
 export type ReminderType = 'VACCINE' | 'CHECKUP' | 'APPOINTMENT' | 'TREATMENT' | 'OTHER';
 export type ReminderStatus = 'PENDING' | 'COMPLETED';
 

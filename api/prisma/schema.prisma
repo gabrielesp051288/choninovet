@@ -122,6 +122,7 @@ model VetProfile {
   reminders     Reminder[]
   records       MedicalRecord[]
   conversations Conversation[]
+  vaccinationRecords VaccinationRecord[]
 
   @@map("vet_profiles")
 }
@@ -146,6 +147,7 @@ model Pet {
   appointments   Appointment[]
   reminders      Reminder[]
   conversations  Conversation[]
+  vaccinationRecords VaccinationRecord[]
 
   @@index([ownerProfileId])
   @@map("pets")
@@ -162,6 +164,28 @@ model PetVet {
   @@unique([petId, vetProfileId])
   @@index([vetProfileId])
   @@map("pet_vets")
+}
+
+model VaccinationRecord {
+  id          String     @id @default(cuid())
+  petId       String
+  vetProfileId String
+  vaccineName String     @map("vaccine_name") @db.VarChar(160)
+  brand       String?    @db.VarChar(120)
+  batchNumber String?    @map("batch_number") @db.VarChar(80)
+  appliedAt   DateTime   @map("applied_at")
+  nextDueAt   DateTime?  @map("next_due_at")
+  notes       String?    @db.Text
+  createdAt   DateTime   @default(now()) @map("created_at")
+  updatedAt   DateTime   @default(now()) @updatedAt @map("updated_at")
+  pet         Pet        @relation(fields: [petId], references: [id], onDelete: Cascade)
+  vet         VetProfile @relation(fields: [vetProfileId], references: [id], onDelete: Cascade)
+
+  @@index([petId])
+  @@index([vetProfileId])
+  @@index([appliedAt])
+  @@index([nextDueAt])
+  @@map("vaccination_records")
 }
 
 model MedicalRecord {
