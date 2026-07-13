@@ -3,7 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { UserRole } from '@prisma/client';
+import { MedicalRecordType, UserRole } from '@prisma/client';
 import { ExtensionsService } from '../extensions/extensions.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateVaccinationRecordDto } from './dto/create-vaccination-record.dto';
@@ -41,19 +41,47 @@ export class VaccinationsService {
     const vetProfile = await this.getVetProfile(user.sub);
     await this.assertVetPetAccess(vetProfile.id, dto.petId);
 
-    return this.prisma.vaccinationRecord.create({
-      data: {
-        petId: dto.petId,
-        vetProfileId: vetProfile.id,
-        vaccineName: dto.vaccineName.trim(),
-        brand: this.cleanOptionalText(dto.brand),
-        batchNumber: this.cleanOptionalText(dto.batchNumber),
-        appliedAt: new Date(dto.appliedAt),
-        nextDueAt: dto.nextDueAt ? new Date(dto.nextDueAt) : undefined,
-        notes: this.cleanOptionalText(dto.notes),
-      },
-      include: { vet: true },
-    });
+    const vaccineName = dto.vaccineName.trim();
+    const brand = this.cleanOptionalText(dto.brand);
+    const batchNumber = this.cleanOptionalText(dto.batchNumber);
+    const notes = this.cleanOptionalText(dto.notes);
+    const appliedAt = new Date(dto.appliedAt);
+    const nextDueAt = dto.nextDueAt ? new Date(dto.nextDueAt) : undefined;
+
+    const [vaccinationRecord] = await this.prisma.$transaction([
+      this.prisma.vaccinationRecord.create({
+        data: {
+          petId: dto.petId,
+          vetProfileId: vetProfile.id,
+          vaccineName,
+          brand,
+          batchNumber,
+          appliedAt,
+          nextDueAt,
+          notes,
+        },
+        include: { vet: true },
+      }),
+      this.prisma.medicalRecord.create({
+        data: {
+          petId: dto.petId,
+          vetProfileId: vetProfile.id,
+          type: MedicalRecordType.VACCINE,
+          recordDate: appliedAt,
+          title: `Vacuna: ${vaccineName}`,
+          description: this.buildMedicalRecordDescription({
+            vaccineName,
+            brand,
+            batchNumber,
+          }),
+          medication: this.buildMedicationText({ vaccineName, brand, batchNumber }),
+          ownerVisibleNotes: notes,
+          nextCheckAt: nextDueAt,
+        },
+      }),
+    ]);
+
+    return vaccinationRecord;
   }
 
   private async assertPetAccess(user: RequestUser, petId: string) {
@@ -127,5 +155,41 @@ export class VaccinationsService {
 
   private cleanOptionalText(value?: string) {
     return value?.trim() || undefined;
+  }
+
+  private buildMedicalRecordDescription({
+    batchNumber,
+    brand,
+    vaccineName,
+  }: {
+    batchNumber?: string;
+    brand?: string;
+    vaccineName: string;
+  }) {
+    const details = [
+      `Aplicacion de vacuna ${vaccineName}.`,
+      brand ? `Marca: ${brand}.` : null,
+      batchNumber ? `Lote: ${batchNumber}.` : null,
+    ].filter(Boolean);
+
+    return details.join(' ');
+  }
+
+  private buildMedicationText({
+    batchNumber,
+    brand,
+    vaccineName,
+  }: {
+    batchNumber?: string;
+    brand?: string;
+    vaccineName: string;
+  }) {
+    return [
+      vaccineName,
+      brand ? `Marca: ${brand}` : null,
+      batchNumber ? `Lote: ${batchNumber}` : null,
+    ]
+      .filter(Boolean)
+      .join(' - ');
   }
 }

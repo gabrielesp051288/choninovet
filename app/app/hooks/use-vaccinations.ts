@@ -33,9 +33,10 @@ export function useCreateVaccination(petId?: string) {
         method: 'POST',
         token,
         body: input,
-      }),
+    }),
     onSuccess() {
       queryClient.invalidateQueries({ queryKey: ['vaccinations', petId] });
+      queryClient.invalidateQueries({ queryKey: ['medical-records', petId] });
     },
   });
 }
