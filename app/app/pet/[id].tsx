@@ -20,7 +20,7 @@ import {
 import { useEffect, useMemo, useState } from 'react';
 import { Image, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { ActionLink, Badge, Card, Muted, Screen, SectionTitle } from '../components';
-import { CalendarDatePicker } from '../date-picker';
+import { CalendarDatePicker, CompactDateSelector } from '../date-picker';
 import {
   useDownloadMedicalAttachment,
   useMedicalAttachments,
@@ -877,7 +877,7 @@ export default function PetDetailScreen() {
           </View>
 
           <View style={styles.form}>
-            <CalendarDatePicker label="Fecha del registro" onChange={setRecordDate} value={recordDate} />
+            <CompactDateSelector label="Fecha del registro" onChange={setRecordDate} value={recordDate} />
             <TextInput
               onChangeText={setTitle}
               placeholder="Titulo"
