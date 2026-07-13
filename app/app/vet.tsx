@@ -4,9 +4,11 @@ import {
   CalendarClock,
   ChevronRight,
   MessageCircle,
+  Puzzle,
   Stethoscope,
   UserRound,
 } from 'lucide-react-native';
+import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import {
   Card,
@@ -15,8 +17,10 @@ import {
   SectionTitle,
   SessionMenu,
 } from './components';
+import { useActiveExtensions } from './hooks/use-extensions';
 import { useVetAppointments, useVetPets } from './hooks/use-vet-dashboard';
 import { useRequireRole } from './lib/auth-routing';
+import { hasActiveVetDashboardTile, type AppExtension } from './lib/extensions';
 import { useAuthStore } from './stores/auth-store';
 import { colors, spacing } from './theme';
 
@@ -32,6 +36,8 @@ export default function VetScreen() {
   const router = useRouter();
   const { isAllowed } = useRequireRole(['VET']);
   const user = useAuthStore((state) => state.user);
+  const [activeExtensionKey, setActiveExtensionKey] = useState<string | null>(null);
+  const extensionsQuery = useActiveExtensions();
   const petsQuery = useVetPets();
   const appointmentsQuery = useVetAppointments();
   const clinicName = user?.vetProfile?.clinicName ?? 'Veterinario/a';
@@ -41,6 +47,10 @@ export default function VetScreen() {
     (item) => item.status === 'CONFIRMED' && isFutureAppointment(item.scheduledAt),
   );
   const todayAppointments = appointments.filter((item) => isToday(item.scheduledAt));
+  const activeVetExtensions = (extensionsQuery.data ?? []).filter(hasActiveVetDashboardTile);
+  const activeExtension = activeVetExtensions.find(
+    (extension) => extension.key === activeExtensionKey,
+  );
 
   const actions: VetAction[] = [
     {
@@ -105,34 +115,67 @@ export default function VetScreen() {
         <SessionMenu />
       </View>
 
-      <View style={styles.actionGrid}>
-        {actions.map((action) => (
-          <Pressable
-            key={action.title}
-            onPress={() => router.push(action.href)}
-            style={styles.actionTile}
-          >
-            <View style={styles.tileTop}>
-              <View style={styles.iconCircle}>
-                <VetActionIcon kind={action.icon} />
-              </View>
-              {typeof action.count === 'number' ? (
-                <Text style={styles.tileMetric}>{action.count}</Text>
-              ) : (
-                <ChevronRight color={colors.muted} size={20} strokeWidth={2.4} />
-              )}
-            </View>
-            <Text style={styles.tileTitle}>{action.title}</Text>
-            <Text style={styles.tileDescription}>{action.description}</Text>
-          </Pressable>
-        ))}
-      </View>
+      {activeExtension ? (
+        <VetExtensionSection
+          extension={activeExtension}
+          onBack={() => setActiveExtensionKey(null)}
+        />
+      ) : null}
 
-      <View style={styles.metrics}>
-        <MetricCard label="Pendientes" value={pendingAppointments.length} />
-        <MetricCard label="Próximos" value={upcomingConfirmedAppointments.length} />
-        <MetricCard label="Hoy" value={todayAppointments.length} />
-      </View>
+      {!activeExtension ? (
+        <>
+          <View style={styles.actionGrid}>
+            {actions.map((action) => (
+              <Pressable
+                key={action.title}
+                onPress={() => router.push(action.href)}
+                style={styles.actionTile}
+              >
+                <View style={styles.tileTop}>
+                  <View style={styles.iconCircle}>
+                    <VetActionIcon kind={action.icon} />
+                  </View>
+                  {typeof action.count === 'number' ? (
+                    <Text style={styles.tileMetric}>{action.count}</Text>
+                  ) : (
+                    <ChevronRight color={colors.muted} size={20} strokeWidth={2.4} />
+                  )}
+                </View>
+                <Text style={styles.tileTitle}>{action.title}</Text>
+                <Text style={styles.tileDescription}>{action.description}</Text>
+              </Pressable>
+            ))}
+            {activeVetExtensions.map((extension) => {
+              const tile = extension.manifest?.entry?.vetDashboardTile;
+
+              return (
+                <Pressable
+                  key={extension.key}
+                  onPress={() => setActiveExtensionKey(extension.key)}
+                  style={styles.actionTile}
+                >
+                  <View style={styles.tileTop}>
+                    <View style={styles.iconCircle}>
+                      <Puzzle color={colors.primaryDark} size={28} strokeWidth={2.4} />
+                    </View>
+                    <ChevronRight color={colors.muted} size={20} strokeWidth={2.4} />
+                  </View>
+                  <Text style={styles.tileTitle}>{tile?.title ?? extension.name}</Text>
+                  <Text style={styles.tileDescription}>
+                    {tile?.description ?? extension.description}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+
+          <View style={styles.metrics}>
+            <MetricCard label="Pendientes" value={pendingAppointments.length} />
+            <MetricCard label="Próximos" value={upcomingConfirmedAppointments.length} />
+            <MetricCard label="Hoy" value={todayAppointments.length} />
+          </View>
+        </>
+      ) : null}
     </Screen>
   );
 }
@@ -143,6 +186,37 @@ function MetricCard({ label, value }: { label: string; value: number }) {
       <Text style={styles.metric}>{value}</Text>
       <Muted>{label}</Muted>
     </View>
+  );
+}
+
+function VetExtensionSection({
+  extension,
+  onBack,
+}: {
+  extension: AppExtension;
+  onBack: () => void;
+}) {
+  const tile = extension.manifest?.entry?.vetDashboardTile;
+
+  return (
+    <Card>
+      <Pressable onPress={onBack} style={styles.backButton}>
+        <Text style={styles.backButtonText}>Volver al panel</Text>
+      </Pressable>
+      <View style={styles.extensionHeader}>
+        <View style={styles.iconCircle}>
+          <Puzzle color={colors.primaryDark} size={28} strokeWidth={2.4} />
+        </View>
+        <View style={styles.extensionHeaderText}>
+          <SectionTitle>{tile?.title ?? extension.name}</SectionTitle>
+          <Muted>{tile?.description ?? extension.description}</Muted>
+        </View>
+      </View>
+      <Text style={styles.extensionMessage}>
+        {tile?.message ??
+          'Esta seccion fue habilitada por una extension activa. No hay contenido adicional declarado.'}
+      </Text>
+    </Card>
   );
 }
 
@@ -275,5 +349,41 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontSize: 28,
     fontWeight: '900',
+  },
+  backButton: {
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    backgroundColor: colors.surfaceAlt,
+    borderColor: colors.border,
+    borderRadius: 8,
+    borderWidth: 1,
+    minHeight: 42,
+    justifyContent: 'center',
+    paddingHorizontal: spacing.sm,
+  },
+  backButtonText: {
+    color: colors.text,
+    fontSize: 13,
+    fontWeight: '900',
+  },
+  extensionHeader: {
+    alignItems: 'flex-start',
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  extensionHeaderText: {
+    flex: 1,
+    gap: spacing.xs,
+  },
+  extensionMessage: {
+    backgroundColor: colors.surfaceAlt,
+    borderColor: colors.border,
+    borderRadius: 8,
+    borderWidth: 1,
+    color: colors.text,
+    fontSize: 15,
+    fontWeight: '700',
+    lineHeight: 22,
+    padding: spacing.md,
   },
 });

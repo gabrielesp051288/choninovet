@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { AdminModule } from './admin/admin.module';
 import { AuthModule } from './auth/auth.module';
+import { ExtensionsModule } from './extensions/extensions.module';
 import { HealthModule } from './health/health.module';
 import { AppointmentsModule } from './appointments/appointments.module';
 import { MedicalRecordsModule } from './medical-records/medical-records.module';
@@ -22,6 +23,7 @@ import { VetsModule } from './vets/vets.module';
     PrismaModule,
     HealthModule,
     AuthModule,
+    ExtensionsModule,
     PetsModule,
     VetsModule,
     AppointmentsModule,

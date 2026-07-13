@@ -8,30 +8,15 @@ import {
 import { AccountStatus, ExtensionStatus, Prisma, UserRole } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import { AuditService } from '../audit/audit.service';
+import {
+  type ExtensionManifest,
+  findSupportedDemandExtension,
+  supportedDemandExtensionLabels,
+} from '../extensions/extension-registry';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateVetUserDto } from './dto/create-vet-user.dto';
 import { UpdateExtensionDto } from './dto/update-extension.dto';
 import { UpdateUserStatusDto } from './dto/update-user-status.dto';
-
-type ExtensionManifest = {
-  key: string;
-  name: string;
-  version?: string;
-  description: string;
-  category?: string;
-  adapter?: string;
-  requiresExternalService?: boolean;
-  entry?: Record<string, unknown>;
-  permissions?: string[];
-};
-
-const supportedDemandExtensions = [
-  {
-    key: 'none',
-    adapter: 'admin-message',
-    name: 'None',
-  },
-] as const;
 
 @Injectable()
 export class AdminService {
@@ -675,16 +660,31 @@ export class AdminService {
       throw new BadRequestException('La extension necesita adapter valido');
     }
 
-    const supportedExtension = supportedDemandExtensions.find(
-      (extension) => extension.key === manifest.key && extension.adapter === manifest.adapter,
-    );
+    const supportedExtension = findSupportedDemandExtension(manifest.key, manifest.adapter);
 
     if (!supportedExtension) {
       throw new BadRequestException(
-        `Extension no soportada por esta instalacion. Soportadas: ${supportedDemandExtensions
-          .map((extension) => `${extension.key}:${extension.adapter}`)
-          .join(', ')}`,
+        `Extension no soportada por esta instalacion. Soportadas: ${supportedDemandExtensionLabels()}`,
       );
+    }
+
+    if (manifest.entry !== undefined) {
+      if (typeof manifest.entry !== 'object' || Array.isArray(manifest.entry)) {
+        throw new BadRequestException('entry debe ser un objeto valido');
+      }
+
+      const unsupportedEntries = Object.keys(manifest.entry).filter(
+        (entryKey) =>
+          !(supportedExtension.supportedEntries as readonly string[]).includes(entryKey),
+      );
+
+      if (unsupportedEntries.length > 0) {
+        throw new BadRequestException(
+          `Entradas no soportadas para ${manifest.key}:${manifest.adapter}: ${unsupportedEntries.join(
+            ', ',
+          )}`,
+        );
+      }
     }
   }
 
